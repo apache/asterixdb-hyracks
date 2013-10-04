@@ -12,19 +12,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package edu.uci.ics.hyracks.api.context;
+package edu.uci.ics.hyracks.storage.am.lsm.common.impls;
 
-import java.nio.ByteBuffer;
+import java.util.concurrent.Callable;
+import java.util.concurrent.FutureTask;
 
-import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
-import edu.uci.ics.hyracks.api.io.IIOManager;
+import edu.uci.ics.hyracks.storage.am.lsm.common.api.ILSMIOOperation;
 
-public interface IHyracksCommonContext {
-    public int getFrameSize();
+public class LSMIOOperationTask<T> extends FutureTask<T> {
+    private final ILSMIOOperation operation;
 
-    public IIOManager getIOManager();
+    public LSMIOOperationTask(Callable<T> callable) {
+        super(callable);
+        this.operation = (ILSMIOOperation) callable;
+    }
 
-    public ByteBuffer allocateFrame() throws HyracksDataException;
-    
-    public void deallocateFrames(int frameCount);
+    public ILSMIOOperation getOperation() {
+        return operation;
+    }
 }
