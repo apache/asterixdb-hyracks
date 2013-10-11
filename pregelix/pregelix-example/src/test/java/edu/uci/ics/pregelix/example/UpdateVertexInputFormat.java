@@ -12,11 +12,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package edu.uci.ics.pregelix.example.inputformat;
+package edu.uci.ics.pregelix.example;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -33,28 +31,23 @@ import edu.uci.ics.pregelix.api.util.BspUtils;
 import edu.uci.ics.pregelix.example.io.DoubleWritable;
 import edu.uci.ics.pregelix.example.io.VLongWritable;
 
-public class TextShortestPathsInputFormat extends
-        TextVertexInputFormat<VLongWritable, DoubleWritable, FloatWritable, DoubleWritable> {
+public class UpdateVertexInputFormat extends TextVertexInputFormat<VLongWritable, Text, FloatWritable, DoubleWritable> {
 
     @Override
-    public VertexReader<VLongWritable, DoubleWritable, FloatWritable, DoubleWritable> createVertexReader(
-            InputSplit split, TaskAttemptContext context) throws IOException {
-        return new TextShortestPathsGraphReader(textInputFormat.createRecordReader(split, context));
+    public VertexReader<VLongWritable, Text, FloatWritable, DoubleWritable> createVertexReader(InputSplit split,
+            TaskAttemptContext context) throws IOException {
+        return new UpdateVertexReader(textInputFormat.createRecordReader(split, context), context);
     }
 }
 
 @SuppressWarnings("rawtypes")
-class TextShortestPathsGraphReader extends
-        TextVertexReader<VLongWritable, DoubleWritable, FloatWritable, DoubleWritable> {
+class UpdateVertexReader extends TextVertexReader<VLongWritable, Text, FloatWritable, DoubleWritable> {
 
     private final static String separator = " ";
     private Vertex vertex;
-    private FloatWritable initValue = new FloatWritable(1.0f);
     private VLongWritable vertexId = new VLongWritable();
-    private List<VLongWritable> pool = new ArrayList<VLongWritable>();
-    private int used = 0;
 
-    public TextShortestPathsGraphReader(RecordReader<LongWritable, Text> lineRecordReader) {
+    public UpdateVertexReader(RecordReader<LongWritable, Text> lineRecordReader, TaskAttemptContext context) {
         super(lineRecordReader);
     }
 
@@ -65,14 +58,13 @@ class TextShortestPathsGraphReader extends
 
     @SuppressWarnings("unchecked")
     @Override
-    public Vertex<VLongWritable, DoubleWritable, FloatWritable, DoubleWritable> getCurrentVertex() throws IOException,
+    public Vertex<VLongWritable, Text, FloatWritable, DoubleWritable> getCurrentVertex() throws IOException,
             InterruptedException {
-        used = 0;
         if (vertex == null)
             vertex = (Vertex) BspUtils.createVertex(getContext().getConfiguration());
-
         vertex.getMsgList().clear();
         vertex.getEdges().clear();
+
         vertex.reset();
         Text line = getRecordReader().getCurrentValue();
         String[] fields = line.toString().split(separator);
@@ -84,32 +76,12 @@ class TextShortestPathsGraphReader extends
             long src = Long.parseLong(fields[0]);
             vertexId.set(src);
             vertex.setVertexId(vertexId);
-            long dest = -1L;
 
             /**
-             * set up edges
+             * set the vertex value
              */
-            for (int i = 1; i < fields.length; i++) {
-                dest = Long.parseLong(fields[i]);
-                VLongWritable destId = allocate();
-                destId.set(dest);
-                vertex.addEdge(destId, initValue);
-            }
+            vertex.setVertexValue(new Text("aaa"));
         }
-        // vertex.sortEdges();
         return vertex;
-    }
-
-    private VLongWritable allocate() {
-        if (used >= pool.size()) {
-            VLongWritable value = new VLongWritable();
-            pool.add(value);
-            used++;
-            return value;
-        } else {
-            VLongWritable value = pool.get(used);
-            used++;
-            return value;
-        }
     }
 }
