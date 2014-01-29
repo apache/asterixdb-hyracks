@@ -17,7 +17,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>edu.uci.ics.hyracks</groupId>
 	<artifactId>hivesterix</artifactId>
-	<version>0.2.10-SNAPSHOT</version>
+	<version>0.2.11-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>hivesterix</name>
 
@@ -93,6 +93,10 @@
 	</distributionManagement>
 
 	<repositories>
+        <repository>
+        <id>maven-central</id>
+        <url>http://repo1.maven.org/maven2/</url>
+        </repository>
 		<repository>
 			<id>hyracks-public</id>
 			<url>http://obelix.ics.uci.edu/nexus/content/groups/hyracks-public/</url>

@@ -14,9 +14,9 @@
  */
 package edu.uci.ics.hyracks.control.cc.job;
 
-import java.util.ArrayList;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;

@@ -15,11 +15,17 @@
 
 package edu.uci.ics.pregelix.core.optimizer;
 
-import edu.uci.ics.hyracks.api.job.profiling.counters.ICounterContext;
+import edu.uci.ics.hyracks.api.dataflow.IOperatorDescriptor;
+import edu.uci.ics.hyracks.api.job.JobSpecification;
+import edu.uci.ics.hyracks.dataflow.std.file.IFileSplitProvider;
 import edu.uci.ics.pregelix.core.jobgen.JobGen;
 
 public interface IOptimizer {
 
-    public JobGen optimize(ICounterContext counterContext, JobGen jobGen, int iteration);
-    
+    public JobGen optimize(JobGen jobGen, int iteration);
+
+    public void setOptimizedLocationConstraints(JobSpecification spec, IOperatorDescriptor operator);
+
+    public IFileSplitProvider getOptimizedFileSplitProvider(String jobId, String indexName);
+
 }

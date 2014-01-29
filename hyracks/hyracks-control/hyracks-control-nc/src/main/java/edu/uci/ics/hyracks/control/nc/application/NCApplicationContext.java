@@ -15,27 +15,45 @@
 package edu.uci.ics.hyracks.control.nc.application;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.Serializable;
 
 import edu.uci.ics.hyracks.api.application.INCApplicationContext;
+import edu.uci.ics.hyracks.api.application.IStateDumpHandler;
 import edu.uci.ics.hyracks.api.context.IHyracksRootContext;
+import edu.uci.ics.hyracks.api.lifecycle.ILifeCycleComponentManager;
 import edu.uci.ics.hyracks.api.resources.memory.IMemoryManager;
 import edu.uci.ics.hyracks.control.common.application.ApplicationContext;
 import edu.uci.ics.hyracks.control.common.context.ServerContext;
 import edu.uci.ics.hyracks.control.nc.resources.memory.MemoryManager;
 
 public class NCApplicationContext extends ApplicationContext implements INCApplicationContext {
+    private final ILifeCycleComponentManager lccm;
     private final String nodeId;
     private final IHyracksRootContext rootCtx;
     private final MemoryManager memoryManager;
     private Object appObject;
+    private IStateDumpHandler sdh;
 
     public NCApplicationContext(ServerContext serverCtx, IHyracksRootContext rootCtx, String nodeId,
-            MemoryManager memoryManager) throws IOException {
+            MemoryManager memoryManager, ILifeCycleComponentManager lifeCyclecomponentManager) throws IOException {
         super(serverCtx);
+        this.lccm = lifeCyclecomponentManager;
         this.nodeId = nodeId;
         this.rootCtx = rootCtx;
         this.memoryManager = memoryManager;
+        sdh = new IStateDumpHandler() {
+
+            @Override
+            public void dumpState(OutputStream os) throws IOException {
+                lccm.dumpState(os);
+            }
+        };
+    }
+
+    @Override
+    public ILifeCycleComponentManager getLifeCycleComponentManager() {
+        return lccm;
     }
 
     @Override
@@ -45,6 +63,15 @@ public class NCApplicationContext extends ApplicationContext implements INCAppli
 
     public void setDistributedState(Serializable state) {
         distributedState = state;
+    }
+
+    @Override
+    public void setStateDumpHandler(IStateDumpHandler handler) {
+        this.sdh = handler;
+    }
+
+    public IStateDumpHandler getStateDumpHandler() {
+        return sdh;
     }
 
     @Override

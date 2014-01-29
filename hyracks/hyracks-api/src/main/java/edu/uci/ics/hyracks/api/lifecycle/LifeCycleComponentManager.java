@@ -17,6 +17,7 @@ package edu.uci.ics.hyracks.api.lifecycle;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -24,8 +25,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class LifeCycleComponentManager implements ILifeCycleComponentManager {
-
-    public final static LifeCycleComponentManager INSTANCE = new LifeCycleComponentManager();
 
     public static final class Config {
         public static final String DUMP_PATH_KEY = "DUMP_PATH";
@@ -39,7 +38,7 @@ public class LifeCycleComponentManager implements ILifeCycleComponentManager {
     private String dumpPath;
     private boolean configured;
 
-    private LifeCycleComponentManager() {
+    public LifeCycleComponentManager() {
         components = new ArrayList<ILifeCycleComponent>();
         stopInitiated = false;
         configured = false;
@@ -148,6 +147,19 @@ public class LifeCycleComponentManager implements ILifeCycleComponentManager {
             LOGGER.severe("LifecycleComponentManager configured " + this);
         }
         configured = true;
+    }
+
+    @Override
+    public String getDumpPath() {
+        return dumpPath;
+    }
+
+    @Override
+    public void dumpState(OutputStream os) throws IOException {
+        for (int index = components.size() - 1; index >= 0; index--) {
+            ILifeCycleComponent component = components.get(index);
+            component.dumpState(os);
+        }
     }
 
     public boolean stoppedAll() {

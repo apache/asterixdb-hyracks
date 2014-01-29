@@ -21,6 +21,7 @@ import org.apache.commons.lang3.mutable.Mutable;
 
 import edu.uci.ics.hyracks.algebricks.common.exceptions.AlgebricksException;
 import edu.uci.ics.hyracks.algebricks.core.algebra.expressions.IVariableTypeEnvironment;
+import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.AbstractLogicalOperator.ExecutionMode;
 import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.IOperatorSchema;
 import edu.uci.ics.hyracks.algebricks.core.algebra.properties.IPhysicalPropertiesVector;
 import edu.uci.ics.hyracks.algebricks.core.algebra.properties.PhysicalRequirements;
@@ -31,6 +32,10 @@ import edu.uci.ics.hyracks.algebricks.core.algebra.visitors.ILogicalOperatorVisi
 import edu.uci.ics.hyracks.algebricks.core.jobgen.impl.JobGenContext;
 
 public interface ILogicalOperator {
+
+    public LogicalOperatorTag getOperatorTag();
+
+    public ExecutionMode getExecutionMode();
 
     public List<Mutable<ILogicalOperator>> getInputs();
 
@@ -89,7 +94,7 @@ public interface ILogicalOperator {
     public IPhysicalPropertiesVector getDeliveredPhysicalProperties();
 
     public void computeDeliveredPhysicalProperties(IOptimizationContext context) throws AlgebricksException;
-    
+
     /**
      * Indicates whether the expressions used by this operator must be variable reference expressions.
      */

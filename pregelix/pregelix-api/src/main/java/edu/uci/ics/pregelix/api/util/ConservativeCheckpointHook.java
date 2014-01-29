@@ -17,7 +17,7 @@ package edu.uci.ics.pregelix.api.util;
 import edu.uci.ics.pregelix.api.job.ICheckpointHook;
 
 /**
- * A conservative checkpoint hook which does checkpoint every 5 supersteps
+ * A conservative checkpoint hook which does checkpoint every 2 supersteps
  * 
  * @author yingyib
  */

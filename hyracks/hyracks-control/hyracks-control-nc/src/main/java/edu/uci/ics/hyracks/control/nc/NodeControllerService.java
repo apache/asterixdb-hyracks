@@ -50,6 +50,8 @@ import edu.uci.ics.hyracks.api.dataset.IDatasetPartitionManager;
 import edu.uci.ics.hyracks.api.deployment.DeploymentId;
 import edu.uci.ics.hyracks.api.io.IODeviceHandle;
 import edu.uci.ics.hyracks.api.job.JobId;
+import edu.uci.ics.hyracks.api.lifecycle.ILifeCycleComponentManager;
+import edu.uci.ics.hyracks.api.lifecycle.LifeCycleComponentManager;
 import edu.uci.ics.hyracks.control.common.AbstractRemoteService;
 import edu.uci.ics.hyracks.control.common.base.IClusterController;
 import edu.uci.ics.hyracks.control.common.context.ServerContext;
@@ -59,6 +61,7 @@ import edu.uci.ics.hyracks.control.common.controllers.NodeRegistration;
 import edu.uci.ics.hyracks.control.common.heartbeat.HeartbeatData;
 import edu.uci.ics.hyracks.control.common.heartbeat.HeartbeatSchema;
 import edu.uci.ics.hyracks.control.common.ipc.CCNCFunctions;
+import edu.uci.ics.hyracks.control.common.ipc.CCNCFunctions.StateDumpRequestFunction;
 import edu.uci.ics.hyracks.control.common.ipc.ClusterControllerRemoteProxy;
 import edu.uci.ics.hyracks.control.common.job.profiling.om.JobProfile;
 import edu.uci.ics.hyracks.control.common.work.FutureValue;
@@ -80,6 +83,7 @@ import edu.uci.ics.hyracks.control.nc.work.CleanupJobletWork;
 import edu.uci.ics.hyracks.control.nc.work.DeployBinaryWork;
 import edu.uci.ics.hyracks.control.nc.work.ReportPartitionAvailabilityWork;
 import edu.uci.ics.hyracks.control.nc.work.StartTasksWork;
+import edu.uci.ics.hyracks.control.nc.work.StateDumpWork;
 import edu.uci.ics.hyracks.control.nc.work.UnDeployBinaryWork;
 import edu.uci.ics.hyracks.ipc.api.IIPCHandle;
 import edu.uci.ics.hyracks.ipc.api.IIPCI;
@@ -132,6 +136,8 @@ public class NodeControllerService extends AbstractRemoteService {
 
     private INCApplicationEntryPoint ncAppEntryPoint;
 
+    private final ILifeCycleComponentManager lccm;
+
     private final MemoryMXBean memoryMXBean;
 
     private final List<GarbageCollectorMXBean> gcMXBeans;
@@ -147,7 +153,7 @@ public class NodeControllerService extends AbstractRemoteService {
     private final MemoryManager memoryManager;
 
     private boolean shuttedDown = false;
-    
+
     private IIOCounter ioCounter;
 
     public NodeControllerService(NCConfig ncConfig) throws Exception {
@@ -164,6 +170,7 @@ public class NodeControllerService extends AbstractRemoteService {
         partitionManager = new PartitionManager(this);
         netManager = new NetworkManager(getIpAddress(ncConfig.dataIPAddress), partitionManager, ncConfig.nNetThreads);
 
+        lccm = new LifeCycleComponentManager();
         queue = new WorkQueue();
         jobletMap = new Hashtable<JobId, Joblet>();
         timer = new Timer(true);
@@ -186,6 +193,10 @@ public class NodeControllerService extends AbstractRemoteService {
 
     public NCApplicationContext getApplicationContext() {
         return appCtx;
+    }
+
+    public ILifeCycleComponentManager getLifeCycleComponentManager() {
+        return lccm;
     }
 
     private static List<IODeviceHandle> getDevices(String ioDevices) {
@@ -291,7 +302,7 @@ public class NodeControllerService extends AbstractRemoteService {
     }
 
     private void startApplication() throws Exception {
-        appCtx = new NCApplicationContext(serverCtx, ctx, id, memoryManager);
+        appCtx = new NCApplicationContext(serverCtx, ctx, id, memoryManager, lccm);
         String className = ncConfig.appNCMainClass;
         if (className != null) {
             Class<?> c = Class.forName(className);
@@ -436,7 +447,7 @@ public class NodeControllerService extends AbstractRemoteService {
 
             hbData.diskReads = ioCounter.getReads();
             hbData.diskWrites = ioCounter.getWrites();
-            
+
             try {
                 cc.nodeHeartbeat(id, hbData);
             } catch (Exception e) {
@@ -470,7 +481,8 @@ public class NodeControllerService extends AbstractRemoteService {
 
     private final class NodeControllerIPCI implements IIPCI {
         @Override
-        public void deliverIncomingMessage(IIPCHandle handle, long mid, long rmid, Object payload, Exception exception) {
+        public void deliverIncomingMessage(final IIPCHandle handle, long mid, long rmid, Object payload,
+                Exception exception) {
             CCNCFunctions.Function fn = (CCNCFunctions.Function) payload;
             switch (fn.getFunctionId()) {
                 case SEND_APPLICATION_MESSAGE: {
@@ -528,6 +540,12 @@ public class NodeControllerService extends AbstractRemoteService {
                 case UNDEPLOY_BINARY: {
                     CCNCFunctions.UnDeployBinaryFunction ndbf = (CCNCFunctions.UnDeployBinaryFunction) fn;
                     queue.schedule(new UnDeployBinaryWork(NodeControllerService.this, ndbf.getDeploymentId()));
+                    return;
+                }
+
+                case STATE_DUMP_REQUEST: {
+                    final CCNCFunctions.StateDumpRequestFunction dsrf = (StateDumpRequestFunction) fn;
+                    queue.schedule(new StateDumpWork(NodeControllerService.this, dsrf.getStateDumpId()));
                     return;
                 }
             }
