@@ -19,7 +19,7 @@
   <parent>
     <groupId>edu.uci.ics.hyracks</groupId>
     <artifactId>hyracks</artifactId>
-    <version>0.2.11-SNAPSHOT</version>
+    <version>0.2.12-SNAPSHOT</version>
   </parent>
 
   <build>
@@ -37,11 +37,10 @@
     </plugins>
   </build>
   <dependencies>
-  <dependency>
-  	<groupId>junit</groupId>
-  	<artifactId>junit</artifactId>
-  	<version>4.8.1</version>
-  	<scope>test</scope>
-  </dependency>
+    <dependency>
+      <!-- Dependency management inherited from top-level hyracks -->
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+    </dependency>
   </dependencies>
 </project>

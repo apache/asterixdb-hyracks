@@ -20,7 +20,7 @@
   <parent>
     <groupId>edu.uci.ics.hyracks</groupId>
     <artifactId>hyracks</artifactId>
-    <version>0.2.11-SNAPSHOT</version>
+    <version>0.2.12-SNAPSHOT</version>
   </parent>
 
   <build>
@@ -41,23 +41,16 @@
   	<dependency>
   		<groupId>edu.uci.ics.hyracks</groupId>
   		<artifactId>hyracks-api</artifactId>
-  		<version>0.2.11-SNAPSHOT</version>
+  		<version>0.2.12-SNAPSHOT</version>
   		<type>jar</type>
   		<scope>compile</scope>
   	</dependency>
   	<dependency>
   		<groupId>edu.uci.ics.hyracks</groupId>
   		<artifactId>hyracks-dataflow-common</artifactId>
-  		<version>0.2.11-SNAPSHOT</version>
+  		<version>0.2.12-SNAPSHOT</version>
   		<type>jar</type>
   		<scope>compile</scope>
-  	</dependency>
-  	<dependency>
-  		<groupId>junit</groupId>
-  		<artifactId>junit</artifactId>
-  		<version>4.8.2</version>
-  		<type>jar</type>
-  		<scope>test</scope>
   	</dependency>
   	<dependency>
   		<groupId>commons-io</groupId>

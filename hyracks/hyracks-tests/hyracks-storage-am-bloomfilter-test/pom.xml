@@ -19,7 +19,7 @@
   <parent>
     <groupId>edu.uci.ics.hyracks</groupId>
     <artifactId>hyracks-tests</artifactId>
-    <version>0.2.11-SNAPSHOT</version>
+    <version>0.2.12-SNAPSHOT</version>
   </parent>
 
   <build>
@@ -37,23 +37,16 @@
   </build>
   <dependencies>
   	<dependency>
-  		<groupId>junit</groupId>
-  		<artifactId>junit</artifactId>
-  		<version>4.8.1</version>
-  		<type>jar</type>
-  		<scope>test</scope>
-  	</dependency>
-  	<dependency>
   		<groupId>edu.uci.ics.hyracks</groupId>
   		<artifactId>hyracks-storage-am-bloomfilter</artifactId>
-  		<version>0.2.11-SNAPSHOT</version>
+  		<version>0.2.12-SNAPSHOT</version>
   		<type>jar</type>
   		<scope>compile</scope>
   	</dependency>
   	<dependency>
   		<groupId>edu.uci.ics.hyracks</groupId>
   		<artifactId>hyracks-test-support</artifactId>
-  		<version>0.2.11-SNAPSHOT</version>
+  		<version>0.2.12-SNAPSHOT</version>
   		<type>jar</type>
   		<scope>test</scope>
   	</dependency>
