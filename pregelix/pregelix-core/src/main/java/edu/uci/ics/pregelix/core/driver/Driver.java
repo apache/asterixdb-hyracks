@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,6 +18,7 @@ package edu.uci.ics.pregelix.core.driver;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
@@ -30,9 +31,12 @@ import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
@@ -45,10 +49,16 @@ import edu.uci.ics.hyracks.api.job.JobId;
 import edu.uci.ics.hyracks.api.job.JobSpecification;
 import edu.uci.ics.hyracks.client.stats.Counters;
 import edu.uci.ics.hyracks.client.stats.impl.ClientCounterContext;
+import edu.uci.ics.pregelix.api.graph.GlobalAggregator;
+import edu.uci.ics.pregelix.api.graph.MessageCombiner;
+import edu.uci.ics.pregelix.api.graph.Vertex;
 import edu.uci.ics.pregelix.api.job.ICheckpointHook;
 import edu.uci.ics.pregelix.api.job.IIterationCompleteReporterHook;
 import edu.uci.ics.pregelix.api.job.PregelixJob;
 import edu.uci.ics.pregelix.api.util.BspUtils;
+import edu.uci.ics.pregelix.api.util.GlobalEdgeCountAggregator;
+import edu.uci.ics.pregelix.api.util.GlobalVertexCountAggregator;
+import edu.uci.ics.pregelix.api.util.ReflectionUtils;
 import edu.uci.ics.pregelix.core.base.IDriver;
 import edu.uci.ics.pregelix.core.jobgen.JobGen;
 import edu.uci.ics.pregelix.core.jobgen.JobGenFactory;
@@ -65,8 +75,9 @@ public class Driver implements IDriver {
             Counters.DISK_READ, Counters.DISK_WRITE, Counters.NETWORK_IO_READ, Counters.NETWORK_IO_WRITE };
     private static final Log LOG = LogFactory.getLog(Driver.class);
     private IHyracksClientConnection hcc;
-    private Class exampleClass;
+    private final Class exampleClass;
     private boolean profiling = false;
+    private final StringBuffer counterBuffer = new StringBuffer();
 
     public Driver(Class exampleClass) {
         this.exampleClass = exampleClass;
@@ -92,8 +103,13 @@ public class Driver implements IDriver {
     public void runJobs(List<PregelixJob> jobs, Plan planChoice, String ipAddress, int port, boolean profiling)
             throws HyracksException {
         try {
+            counterBuffer.delete(0, counterBuffer.length());
+            counterBuffer.append("performance counters\n");
             if (jobs.size() <= 0) {
                 throw new HyracksException("Please submit at least one job for execution!");
+            }
+            for (PregelixJob job : jobs) {
+                initJobConfiguration(job);
             }
             this.profiling = profiling;
             PregelixJob currentJob = jobs.get(0);
@@ -129,16 +145,23 @@ public class Driver implements IDriver {
                         addHadoopConfiguration(currentJob, ipAddress, port, failed);
                         ICheckpointHook ckpHook = BspUtils.createCheckpointHook(currentJob.getConfiguration());
 
+                        boolean compatible = i == 0 ? false : compatible(lastJob, currentJob);
                         /** load the data */
-                        if ((i == 0 || compatible(lastJob, currentJob)) && !failed) {
-                            if (i != 0) {
+                        if (!failed) {
+                            IterationUtils.makeTempDirectory(currentJob.getConfiguration());
+                            if (i == 0) {
+                                jobGen.reset(currentJob);
+                                loadData(currentJob, jobGen, deploymentId);
+                            } else if (!compatible) {
                                 finishJobs(jobGen, deploymentId);
                                 /** invalidate/clear checkpoint */
                                 lastSnapshotJobIndex.set(0);
                                 lastSnapshotSuperstep.set(0);
+                                jobGen.reset(currentJob);
+                                loadData(currentJob, jobGen, deploymentId);
+                            } else {
+                                jobGen.reset(currentJob);
                             }
-                            jobGen.reset(currentJob);
-                            loadData(currentJob, jobGen, deploymentId);
                         } else {
                             jobGen.reset(currentJob);
                         }
@@ -147,14 +170,16 @@ public class Driver implements IDriver {
                         jobGen = dynamicOptimizer.optimize(jobGen, i);
                         runLoopBody(deploymentId, currentJob, jobGen, i, lastSnapshotJobIndex, lastSnapshotSuperstep,
                                 ckpHook, failed);
-                        runClearState(deploymentId, jobGen);
                         failed = false;
                     }
 
                     /** finish the jobs */
                     finishJobs(jobGen, deploymentId);
-                    /** clear checkpoints if any */
-                    jobGen.clearCheckpoints();
+
+                    /** clear state */
+                    runClearState(deploymentId, jobGen, true);
+
+                    /** undeploy the binary */
                     hcc.unDeployBinary(deploymentId);
                 } catch (Exception e1) {
                     Set<String> blackListNodes = new HashSet<String>();
@@ -169,8 +194,6 @@ public class Driver implements IDriver {
                 }
             } while (failed && retryCount < maxRetryCount);
             LOG.info("job finished");
-            StringBuffer counterBuffer = new StringBuffer();
-            counterBuffer.append("performance counters\n");
             for (String counter : COUNTERS) {
                 counterBuffer.append("\t" + counter + ": " + counterContext.getCounter(counter, false).get() + "\n");
             }
@@ -178,6 +201,15 @@ public class Driver implements IDriver {
             counterContext.stop();
         } catch (Exception e) {
             throw new HyracksException(e);
+        } finally {
+            /** clear temporary directories */
+            try {
+                for (PregelixJob job : jobs) {
+                    IterationUtils.removeTempDirectory(job.getConfiguration());
+                }
+            } catch (Exception e) {
+                throw new HyracksException(e);
+            }
         }
     }
 
@@ -195,8 +227,8 @@ public class Driver implements IDriver {
         return lastVertexIdClass.equals(currentVertexIdClass)
                 && lastVertexValueClass.equals(currentVertexValueClass)
                 && lastEdgeValueClass.equals(currentEdegeValueClass)
-                && (currentInputPaths.length == 0 || (currentInputPaths.length == 1 && lastOutputPath
-                        .equals(currentInputPaths[0])));
+                && (currentInputPaths.length == 0 || currentInputPaths.length == 1
+                        && lastOutputPath.equals(currentInputPaths[0]));
     }
 
     private JobGen selectJobGen(Plan planChoice, PregelixJob currentJob, IOptimizer optimizer) {
@@ -241,9 +273,11 @@ public class Driver implements IDriver {
         URLClassLoader classLoader = (URLClassLoader) exampleClass.getClassLoader();
         List<File> jars = new ArrayList<File>();
         URL[] urls = classLoader.getURLs();
-        for (URL url : urls)
-            if (url.toString().endsWith(".jar"))
+        for (URL url : urls) {
+            if (url.toString().endsWith(".jar")) {
                 jars.add(new File(url.getPath()));
+            }
+        }
         DeploymentId deploymentId = installApplication(jars);
         return deploymentId;
     }
@@ -273,10 +307,9 @@ public class Driver implements IDriver {
         if (doRecovery) {
             /** reload the checkpoint */
             if (snapshotSuperstep.get() > 0) {
-                runClearState(deploymentId, jobGen);
                 runLoadCheckpoint(deploymentId, jobGen, snapshotSuperstep.get());
             } else {
-                runClearState(deploymentId, jobGen);
+                runClearState(deploymentId, jobGen, true);
                 loadData(job, jobGen, deploymentId);
             }
         }
@@ -293,9 +326,22 @@ public class Driver implements IDriver {
             end = System.currentTimeMillis();
             time = end - start;
             LOG.info(job + ": iteration " + i + " finished " + time + "ms");
+            if (i == 1) {
+                counterBuffer.append("\t"
+                        + "total vertice: "
+                        + IterationUtils.readGlobalAggregateValue(job.getConfiguration(),
+                                BspUtils.getJobId(job.getConfiguration()), GlobalVertexCountAggregator.class.getName())
+                        + "\n");
+                counterBuffer.append("\t"
+                        + "total edges: "
+                        + IterationUtils.readGlobalAggregateValue(job.getConfiguration(),
+                                BspUtils.getJobId(job.getConfiguration()), GlobalEdgeCountAggregator.class.getName())
+                        + "\n");
+            }
             terminate = IterationUtils.readTerminationState(job.getConfiguration(), jobGen.getJobId())
-                    || IterationUtils.readForceTerminationState(job.getConfiguration(), jobGen.getJobId());
-            if (ckpHook.checkpoint(i) || (ckpInterval > 0 && i % ckpInterval == 0)) {
+                    || IterationUtils.readForceTerminationState(job.getConfiguration(), jobGen.getJobId())
+                    || i >= BspUtils.getMaxIteration(job.getConfiguration());
+            if (ckpHook.checkpoint(i) || ckpInterval > 0 && i % ckpInterval == 0) {
                 runCheckpoint(deploymentId, jobGen, i);
                 snapshotJobIndex.set(currentJobIndex);
                 snapshotSuperstep.set(i);
@@ -369,9 +415,9 @@ public class Driver implements IDriver {
         }
     }
 
-    private void runClearState(DeploymentId deploymentId, JobGen jobGen) throws Exception {
+    private void runClearState(DeploymentId deploymentId, JobGen jobGen, boolean allStates) throws Exception {
         try {
-            JobSpecification clear = jobGen.generateClearState();
+            JobSpecification clear = jobGen.generateClearState(allStates);
             execute(deploymentId, clear);
         } catch (Exception e) {
             throw e;
@@ -386,6 +432,7 @@ public class Driver implements IDriver {
 
     private void execute(DeploymentId deploymentId, JobSpecification job) throws Exception {
         job.setUseConnectorPolicyForScheduling(false);
+        job.setReportTaskDetails(false);
         job.setMaxReattempts(0);
         JobId jobId = hcc.startJob(deploymentId, job,
                 profiling ? EnumSet.of(JobFlag.PROFILE_RUNTIME) : EnumSet.noneOf(JobFlag.class));
@@ -403,15 +450,52 @@ public class Driver implements IDriver {
         LOG.info("jar deployment finished " + (end - start) + "ms");
         return deploymentId;
     }
+
+    @SuppressWarnings({ "unchecked" })
+    private void initJobConfiguration(PregelixJob job) {
+        Configuration conf = job.getConfiguration();
+        Class vertexClass = conf.getClass(PregelixJob.VERTEX_CLASS, Vertex.class);
+        List<Type> parameterTypes = ReflectionUtils.getTypeArguments(Vertex.class, vertexClass);
+        Type vertexIndexType = parameterTypes.get(0);
+        Type vertexValueType = parameterTypes.get(1);
+        Type edgeValueType = parameterTypes.get(2);
+        Type messageValueType = parameterTypes.get(3);
+        conf.setClass(PregelixJob.VERTEX_INDEX_CLASS, (Class<?>) vertexIndexType, WritableComparable.class);
+        conf.setClass(PregelixJob.VERTEX_VALUE_CLASS, (Class<?>) vertexValueType, Writable.class);
+        conf.setClass(PregelixJob.EDGE_VALUE_CLASS, (Class<?>) edgeValueType, Writable.class);
+        conf.setClass(PregelixJob.MESSAGE_VALUE_CLASS, (Class<?>) messageValueType, Writable.class);
+
+        List aggregatorClasses = BspUtils.getGlobalAggregatorClasses(conf);
+        for (int i = 0; i < aggregatorClasses.size(); i++) {
+            Class aggregatorClass = (Class) aggregatorClasses.get(i);
+            if (!aggregatorClass.equals(GlobalAggregator.class)) {
+                List<Type> argTypes = ReflectionUtils.getTypeArguments(GlobalAggregator.class, aggregatorClass);
+                Type partialAggregateValueType = argTypes.get(4);
+                conf.setClass(PregelixJob.PARTIAL_AGGREGATE_VALUE_CLASS + "$" + aggregatorClass.getName(),
+                        (Class<?>) partialAggregateValueType, Writable.class);
+                Type finalAggregateValueType = argTypes.get(5);
+                conf.setClass(PregelixJob.FINAL_AGGREGATE_VALUE_CLASS + "$" + aggregatorClass.getName(),
+                        (Class<?>) finalAggregateValueType, Writable.class);
+            }
+        }
+
+        Class combinerClass = BspUtils.getMessageCombinerClass(conf);
+        if (!combinerClass.equals(MessageCombiner.class)) {
+            List<Type> argTypes = ReflectionUtils.getTypeArguments(MessageCombiner.class, combinerClass);
+            Type partialCombineValueType = argTypes.get(2);
+            conf.setClass(PregelixJob.PARTIAL_COMBINE_VALUE_CLASS, (Class<?>) partialCombineValueType, Writable.class);
+        }
+    }
 }
 
 class FileFilter implements FilenameFilter {
-    private String ext;
+    private final String ext;
 
     public FileFilter(String ext) {
         this.ext = "." + ext;
     }
 
+    @Override
     public boolean accept(File dir, String name) {
         return name.endsWith(ext);
     }

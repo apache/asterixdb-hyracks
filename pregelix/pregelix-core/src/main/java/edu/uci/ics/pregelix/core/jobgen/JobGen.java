@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -66,6 +66,9 @@ import edu.uci.ics.hyracks.dataflow.std.connectors.OneToOneConnectorDescriptor;
 import edu.uci.ics.hyracks.dataflow.std.file.ConstantFileSplitProvider;
 import edu.uci.ics.hyracks.dataflow.std.file.FileSplit;
 import edu.uci.ics.hyracks.dataflow.std.file.IFileSplitProvider;
+import edu.uci.ics.hyracks.dataflow.std.group.HashSpillableTableFactory;
+import edu.uci.ics.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
+import edu.uci.ics.hyracks.dataflow.std.group.external.ExternalGroupOperatorDescriptor;
 import edu.uci.ics.hyracks.dataflow.std.misc.ConstantTupleSourceOperatorDescriptor;
 import edu.uci.ics.hyracks.dataflow.std.sort.Algorithm;
 import edu.uci.ics.hyracks.dataflow.std.sort.ExternalSortOperatorDescriptor;
@@ -119,6 +122,9 @@ import edu.uci.ics.pregelix.dataflow.std.TreeIndexBulkReLoadOperatorDescriptor;
 import edu.uci.ics.pregelix.dataflow.std.TreeSearchFunctionUpdateOperatorDescriptor;
 import edu.uci.ics.pregelix.dataflow.std.base.IRecordDescriptorFactory;
 import edu.uci.ics.pregelix.dataflow.std.base.IRuntimeHookFactory;
+import edu.uci.ics.pregelix.dataflow.std.group.ClusteredGroupOperatorDescriptor;
+import edu.uci.ics.pregelix.dataflow.std.group.IClusteredAggregatorDescriptorFactory;
+import edu.uci.ics.pregelix.dataflow.std.sort.FastSortOperatorDescriptor;
 import edu.uci.ics.pregelix.runtime.bootstrap.IndexLifeCycleManagerProvider;
 import edu.uci.ics.pregelix.runtime.bootstrap.StorageManagerInterface;
 import edu.uci.ics.pregelix.runtime.bootstrap.VirtualBufferCacheProvider;
@@ -131,17 +137,19 @@ import edu.uci.ics.pregelix.runtime.touchpoint.WritableSerializerDeserializerFac
 
 public abstract class JobGen implements IJobGen {
     private static final Logger LOGGER = Logger.getLogger(JobGen.class.getName());
+    protected static final int BF_HINT = 100000;
     protected static final int MB = 1048576;
     protected static final float DEFAULT_BTREE_FILL_FACTOR = 1.00f;
-    protected static final int tableSize = 10485767;
+    protected static final int tableSize = 1575767;
     protected static final String PRIMARY_INDEX = "primary";
     protected Configuration conf;
+    protected IConfigurationFactory confFactory;
     protected PregelixJob pregelixJob;
     protected IIndexLifecycleManagerProvider lcManagerProvider = IndexLifeCycleManagerProvider.INSTANCE;
     protected IStorageManagerInterface storageManagerInterface = StorageManagerInterface.INSTANCE;
     protected String jobId = UUID.randomUUID().toString();;
     protected int frameSize = ClusterConfig.getFrameSize();
-    protected int maxFrameNumber = (int) (((long) 32 * MB) / frameSize);
+    protected int maxFrameNumber = (int) ((long) 64 * MB / frameSize);
     protected IOptimizer optimizer;
 
     private static final Map<String, String> MERGE_POLICY_PROPERTIES;
@@ -168,17 +176,17 @@ public abstract class JobGen implements IJobGen {
         this.optimizer = optimizer;
         conf = job.getConfiguration();
         pregelixJob = job;
-        initJobConfiguration();
         job.setJobId(jobId);
         // set the frame size to be the one user specified if the user did specify.
         int specifiedFrameSize = BspUtils.getFrameSize(job.getConfiguration());
         if (specifiedFrameSize > 0) {
             frameSize = specifiedFrameSize;
-            maxFrameNumber = (int) (((long) 32 * MB) / frameSize);
+            maxFrameNumber = BspUtils.getSortMemoryLimit(conf);
         }
         if (maxFrameNumber <= 0) {
-            maxFrameNumber = 1;
+            maxFrameNumber = 1000;
         }
+        initJobConfiguration();
     }
 
     public void reset(PregelixJob job) {
@@ -218,6 +226,7 @@ public abstract class JobGen implements IJobGen {
             Type partialCombineValueType = argTypes.get(2);
             conf.setClass(PregelixJob.PARTIAL_COMBINE_VALUE_CLASS, (Class<?>) partialCombineValueType, Writable.class);
         }
+        this.confFactory = new ConfigurationFactory(conf);
     }
 
     public String getJobId() {
@@ -248,19 +257,21 @@ public abstract class JobGen implements IJobGen {
 
     @Override
     public JobSpecification generateJob(int iteration) throws HyracksException {
-        if (iteration <= 0)
+        if (iteration <= 0) {
             throw new IllegalStateException("iteration number cannot be less than 1");
-        if (iteration == 1)
+        }
+        if (iteration == 1) {
             return generateFirstIteration(iteration);
-        else
+        } else {
             return generateNonFirstIteration(iteration);
+        }
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public JobSpecification scanSortPrintGraph(String nodeName, String path) throws HyracksException {
         Class<? extends WritableComparable<?>> vertexIdClass = BspUtils.getVertexIndexClass(conf);
         Class<? extends Writable> vertexClass = BspUtils.getVertexClass(conf);
-        int maxFrameLimit = (int) (((long) 512 * MB) / frameSize);
+        int maxFrameLimit = (int) ((long) 512 * MB / frameSize);
         JobSpecification spec = new JobSpecification(frameSize);
         IFileSplitProvider fileSplitProvider = getFileSplitProvider(jobId, PRIMARY_INDEX);
 
@@ -277,7 +288,7 @@ public abstract class JobGen implements IJobGen {
         }
         RecordDescriptor recordDescriptor = DataflowUtils.getRecordDescriptorFromKeyValueClasses(conf,
                 vertexIdClass.getName(), vertexClass.getName());
-        IConfigurationFactory confFactory = new ConfigurationFactory(conf);
+        IConfigurationFactory confFactory = getConfigurationFactory();
         String[] readSchedule = ClusterConfig.getHdfsScheduler().getLocationConstraints(splits);
         VertexFileScanOperatorDescriptor scanner = new VertexFileScanOperatorDescriptor(spec, recordDescriptor, splits,
                 readSchedule, confFactory);
@@ -304,7 +315,7 @@ public abstract class JobGen implements IJobGen {
         IFileSplitProvider resultFileSplitProvider = new ConstantFileSplitProvider(results);
         IRuntimeHookFactory preHookFactory = new RuntimeHookFactory(confFactory);
         IRecordDescriptorFactory inputRdFactory = DataflowUtils.getWritableRecordDescriptorFactoryFromWritableClasses(
-                conf, vertexIdClass.getName(), vertexClass.getName());
+                getConfigurationFactory(), vertexIdClass.getName(), vertexClass.getName());
         VertexWriteOperatorDescriptor writer = new VertexWriteOperatorDescriptor(spec, inputRdFactory,
                 resultFileSplitProvider, preHookFactory, null);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, writer, new String[] { "nc1" });
@@ -345,7 +356,7 @@ public abstract class JobGen implements IJobGen {
         /**
          * construct btree search operator
          */
-        IConfigurationFactory confFactory = new ConfigurationFactory(conf);
+        IConfigurationFactory confFactory = getConfigurationFactory();
         RecordDescriptor recordDescriptor = DataflowUtils.getRecordDescriptorFromKeyValueClasses(conf,
                 vertexIdClass.getName(), vertexClass.getName());
         IBinaryComparatorFactory[] comparatorFactories = new IBinaryComparatorFactory[1];
@@ -356,7 +367,8 @@ public abstract class JobGen implements IJobGen {
         typeTraits[1] = new TypeTraits(false);
         BTreeSearchOperatorDescriptor scanner = new BTreeSearchOperatorDescriptor(spec, recordDescriptor,
                 storageManagerInterface, lcManagerProvider, fileSplitProvider, typeTraits, comparatorFactories, null,
-                null, null, true, true, getIndexDataflowHelperFactory(), false, NoOpOperationCallbackFactory.INSTANCE);
+                null, null, true, true, getIndexDataflowHelperFactory(), false, false, null,
+                NoOpOperationCallbackFactory.INSTANCE);
         setLocationConstraint(spec, scanner);
 
         /**
@@ -368,7 +380,7 @@ public abstract class JobGen implements IJobGen {
         IFileSplitProvider resultFileSplitProvider = new ConstantFileSplitProvider(results);
         IRuntimeHookFactory preHookFactory = new RuntimeHookFactory(confFactory);
         IRecordDescriptorFactory inputRdFactory = DataflowUtils.getWritableRecordDescriptorFactoryFromWritableClasses(
-                conf, vertexIdClass.getName(), vertexClass.getName());
+                getConfigurationFactory(), vertexIdClass.getName(), vertexClass.getName());
         VertexWriteOperatorDescriptor writer = new VertexWriteOperatorDescriptor(spec, inputRdFactory,
                 resultFileSplitProvider, preHookFactory, null);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, writer, new String[] { "nc1" });
@@ -427,12 +439,6 @@ public abstract class JobGen implements IJobGen {
         return spec;
     }
 
-    public void clearCheckpoints() throws IOException {
-        FileSystem dfs = FileSystem.get(conf);
-        // clear the checkpoint directory
-        dfs.delete(new Path("/tmp/ckpoint/" + jobId), true);
-    }
-
     @Override
     public JobSpecification[] generateLoadingCheckpoint(int lastCheckpointedIteration) throws HyracksException {
         try {
@@ -464,9 +470,10 @@ public abstract class JobGen implements IJobGen {
     /***
      * generate a "clear state" job
      */
-    public JobSpecification generateClearState() throws HyracksException {
-        JobSpecification spec = new JobSpecification(frameSize);
-        ClearStateOperatorDescriptor clearState = new ClearStateOperatorDescriptor(spec, jobId);
+    @Override
+    public JobSpecification generateClearState(boolean allStates) throws HyracksException {
+        JobSpecification spec = new JobSpecification();
+        ClearStateOperatorDescriptor clearState = new ClearStateOperatorDescriptor(spec, jobId, allStates);
         setLocationConstraint(spec, clearState);
         spec.addRoot(clearState);
         return spec;
@@ -474,7 +481,7 @@ public abstract class JobGen implements IJobGen {
 
     /***
      * drop the sindex
-     * 
+     *
      * @return JobSpecification
      * @throws HyracksException
      */
@@ -493,7 +500,7 @@ public abstract class JobGen implements IJobGen {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     protected ITuplePartitionComputerFactory getVertexPartitionComputerFactory() {
-        IConfigurationFactory confFactory = new ConfigurationFactory(conf);
+        IConfigurationFactory confFactory = getConfigurationFactory();
         Class<? extends VertexPartitioner> partitionerClazz = BspUtils.getVertexPartitionerClass(conf);
         if (partitionerClazz != null) {
             return new VertexPartitionComputerFactory(confFactory);
@@ -531,8 +538,9 @@ public abstract class JobGen implements IJobGen {
         try {
             splits = inputFormat.getSplits(job, fileSplitProvider.getFileSplits().length);
             LOGGER.info("number of splits: " + splits.size());
-            for (InputSplit split : splits)
+            for (InputSplit split : splits) {
                 LOGGER.info(split.toString());
+            }
         } catch (Exception e) {
             throw new HyracksDataException(e);
         }
@@ -567,7 +575,7 @@ public abstract class JobGen implements IJobGen {
         typeTraits[1] = new TypeTraits(false);
         TreeIndexBulkLoadOperatorDescriptor btreeBulkLoad = new TreeIndexBulkLoadOperatorDescriptor(spec,
                 storageManagerInterface, lcManagerProvider, fileSplitProvider, typeTraits, comparatorFactories,
-                sortFields, fieldPermutation, DEFAULT_BTREE_FILL_FACTOR, true, 0, false,
+                sortFields, fieldPermutation, DEFAULT_BTREE_FILL_FACTOR, true, BF_HINT, false,
                 getIndexDataflowHelperFactory(), NoOpOperationCallbackFactory.INSTANCE);
         setLocationConstraint(spec, btreeBulkLoad);
 
@@ -619,7 +627,8 @@ public abstract class JobGen implements IJobGen {
 
         BTreeSearchOperatorDescriptor scanner = new BTreeSearchOperatorDescriptor(spec, recordDescriptor,
                 storageManagerInterface, lcManagerProvider, fileSplitProvider, typeTraits, comparatorFactories, null,
-                null, null, true, true, getIndexDataflowHelperFactory(), false, NoOpOperationCallbackFactory.INSTANCE);
+                null, null, true, true, getIndexDataflowHelperFactory(), false, false, null,
+                NoOpOperationCallbackFactory.INSTANCE);
         setLocationConstraint(spec, scanner);
 
         ExternalSortOperatorDescriptor sort = null;
@@ -638,7 +647,7 @@ public abstract class JobGen implements IJobGen {
          */
         IRuntimeHookFactory preHookFactory = new RuntimeHookFactory(confFactory);
         IRecordDescriptorFactory inputRdFactory = DataflowUtils.getWritableRecordDescriptorFactoryFromWritableClasses(
-                conf, vertexIdClass.getName(), vertexClass.getName());
+                getConfigurationFactory(), vertexIdClass.getName(), vertexClass.getName());
         VertexFileWriteOperatorDescriptor writer = new VertexFileWriteOperatorDescriptor(spec, confFactory,
                 inputRdFactory, preHookFactory);
         setLocationConstraint(spec, writer);
@@ -703,7 +712,7 @@ public abstract class JobGen implements IJobGen {
         tmpJob.setOutputValueClass(MsgList.class);
 
         IRecordDescriptorFactory inputRdFactory = DataflowUtils.getWritableRecordDescriptorFactoryFromWritableClasses(
-                conf, vertexIdClass.getName(), MsgList.class.getName());
+                new ConfigurationFactory(tmpJob.getConfiguration()), vertexIdClass.getName(), MsgList.class.getName());
         HDFSFileWriteOperatorDescriptor hdfsWriter = new HDFSFileWriteOperatorDescriptor(spec, tmpJob, inputRdFactory);
         setLocationConstraint(spec, hdfsWriter);
 
@@ -738,8 +747,9 @@ public abstract class JobGen implements IJobGen {
                     job.getConfiguration());
             splits = inputFormat.getSplits(tmpJob);
             LOGGER.info("number of splits: " + splits.size());
-            for (InputSplit split : splits)
+            for (InputSplit split : splits) {
                 LOGGER.info(split.toString());
+            }
         } catch (Exception e) {
             throw new HyracksDataException(e);
         }
@@ -769,7 +779,7 @@ public abstract class JobGen implements IJobGen {
         /** construct runtime hook */
         RuntimeHookOperatorDescriptor postSuperStep = new RuntimeHookOperatorDescriptor(spec,
                 new RecoveryRuntimeHookFactory(jobId, lastCheckpointedIteration, new ConfigurationFactory(
-                        pregelixJob.getConfiguration())));
+                        tmpJob.getConfiguration())));
         setLocationConstraint(spec, postSuperStep);
 
         /** construct empty sink operator */
@@ -799,7 +809,7 @@ public abstract class JobGen implements IJobGen {
 
     /**
      * Switch the plan to a desired one
-     * 
+     *
      * @param iteration
      *            , the latest completed iteration number
      * @param plan
@@ -818,7 +828,7 @@ public abstract class JobGen implements IJobGen {
 
     /**
      * Build a jobspec to bulkload the live vertex btree
-     * 
+     *
      * @param iteration
      * @return the job specification
      * @throws HyracksException
@@ -846,10 +856,10 @@ public abstract class JobGen implements IJobGen {
         ITypeTraits[] typeTraits = new ITypeTraits[2];
         typeTraits[0] = new TypeTraits(false);
         typeTraits[1] = new TypeTraits(false);
-        IConfigurationFactory configurationFactory = new ConfigurationFactory(conf);
+        IConfigurationFactory configurationFactory = getConfigurationFactory();
         IRuntimeHookFactory preHookFactory = new RuntimeHookFactory(configurationFactory);
         IRecordDescriptorFactory inputRdFactory = DataflowUtils.getWritableRecordDescriptorFactoryFromWritableClasses(
-                conf, vertexIdClass.getName(), vertexClass.getName());
+                getConfigurationFactory(), vertexIdClass.getName(), vertexClass.getName());
         RecordDescriptor rdFinal = DataflowUtils.getRecordDescriptorFromKeyValueClasses(conf, vertexIdClass.getName(),
                 MsgList.class.getName());
         TreeSearchFunctionUpdateOperatorDescriptor scanner = new TreeSearchFunctionUpdateOperatorDescriptor(spec,
@@ -883,7 +893,7 @@ public abstract class JobGen implements IJobGen {
 
     /**
      * set the location constraint for operators
-     * 
+     *
      * @param spec
      * @param operator
      */
@@ -893,7 +903,7 @@ public abstract class JobGen implements IJobGen {
 
     /**
      * get the file split provider
-     * 
+     *
      * @param jobId
      * @param indexName
      * @return the IFileSplitProvider instance
@@ -902,4 +912,119 @@ public abstract class JobGen implements IJobGen {
         return optimizer.getOptimizedFileSplitProvider(jobId, indexName);
     }
 
+    /**
+     * @return the PregelixJob configuration
+     */
+    public PregelixJob getPregelixJob() {
+        return pregelixJob;
+    }
+
+    /**
+     * Generate the pipeline for local grouping
+     *
+     * @param spec
+     *            the JobSpecification
+     * @param sortOrHash
+     *            sort-based algorithm or hash-based algorithm
+     * @return the start and end (if any) operators of the grouping pipeline
+     */
+    protected Pair<IOperatorDescriptor, IOperatorDescriptor> generateGroupingOperators(JobSpecification spec,
+            int iteration, Class<? extends Writable> vertexIdClass) throws HyracksException {
+        int[] keyFields = new int[] { 0 };
+        Class<? extends Writable> messageValueClass = BspUtils.getMessageValueClass(conf);
+        Class<? extends Writable> partialCombineValueClass = BspUtils.getPartialCombineValueClass(conf);
+        INormalizedKeyComputerFactory nkmFactory = JobGenUtil.getINormalizedKeyComputerFactory(conf);
+        IBinaryComparatorFactory[] sortCmpFactories = new IBinaryComparatorFactory[1];
+        sortCmpFactories[0] = JobGenUtil.getIBinaryComparatorFactory(iteration, vertexIdClass);
+        RecordDescriptor rdUnnestedMessage = DataflowUtils.getRecordDescriptorFromKeyValueClasses(conf,
+                vertexIdClass.getName(), messageValueClass.getName());
+        RecordDescriptor rdCombinedMessage = DataflowUtils.getRecordDescriptorFromKeyValueClasses(conf,
+                vertexIdClass.getName(), partialCombineValueClass.getName());
+        RecordDescriptor rdFinal = DataflowUtils.getRecordDescriptorFromKeyValueClasses(conf, vertexIdClass.getName(),
+                MsgList.class.getName());
+        boolean sortOrHash = BspUtils.getGroupingAlgorithm(conf);
+        boolean merge = BspUtils.getMergingConnector(conf);
+
+        if (sortOrHash) {
+            /**
+             * construct local sort operator
+             */
+            IClusteredAggregatorDescriptorFactory localAggregatorFactory = DataflowUtils
+                    .getAccumulatingAggregatorFactory(this.getConfigurationFactory(), false, false);
+            IClusteredAggregatorDescriptorFactory partialAggregatorFactory = DataflowUtils
+                    .getAccumulatingAggregatorFactory(this.getConfigurationFactory(), false, true);
+            IOperatorDescriptor localGby = new FastSortOperatorDescriptor(spec, maxFrameNumber, keyFields,
+                    rdUnnestedMessage, keyFields, localAggregatorFactory, partialAggregatorFactory, rdCombinedMessage,
+                    rdCombinedMessage, true);
+            setLocationConstraint(spec, localGby);
+
+            /**
+             * construct global group-by operator
+             */
+            IClusteredAggregatorDescriptorFactory finalAggregatorFactory = DataflowUtils
+                    .getAccumulatingAggregatorFactory(getConfigurationFactory(), true, true);
+            ITuplePartitionComputerFactory partionFactory = getVertexPartitionComputerFactory();
+            if (merge) {
+                IOperatorDescriptor globalGby = new ClusteredGroupOperatorDescriptor(spec, keyFields, sortCmpFactories,
+                        finalAggregatorFactory, rdFinal);
+                setLocationConstraint(spec, globalGby);
+                spec.connect(
+                        new edu.uci.ics.pregelix.dataflow.std.connectors.MToNPartitioningMergingConnectorDescriptor(
+                                spec, partionFactory, keyFields), localGby, 0, globalGby, 0);
+                return Pair.of(localGby, globalGby);
+            } else {
+                IOperatorDescriptor globalGby = new FastSortOperatorDescriptor(spec, maxFrameNumber, keyFields,
+                        rdCombinedMessage, keyFields, partialAggregatorFactory, finalAggregatorFactory,
+                        rdCombinedMessage, rdFinal, false);
+                setLocationConstraint(spec, globalGby);
+                spec.connect(new MToNPartitioningConnectorDescriptor(spec, partionFactory), localGby, 0, globalGby, 0);
+                return Pair.of(localGby, globalGby);
+            }
+        } else {
+            int frameLimit = BspUtils.getGroupingMemoryLimit(conf);
+            int hashTableSize = Math.round(frameLimit / 1000f * tableSize);
+            /**
+             * construct local group-by operator
+             */
+            ITuplePartitionComputerFactory partionFactory = getVertexPartitionComputerFactory();
+            IAggregatorDescriptorFactory localAggregatorFactory = DataflowUtils.getSerializableAggregatorFactory(
+                    getConfigurationFactory(), false, false);
+            IAggregatorDescriptorFactory partialAggregatorFactory = DataflowUtils.getSerializableAggregatorFactory(
+                    getConfigurationFactory(), false, true);
+            IOperatorDescriptor localGby = new ExternalGroupOperatorDescriptor(spec, keyFields, frameLimit,
+                    sortCmpFactories, nkmFactory, localAggregatorFactory, partialAggregatorFactory, rdUnnestedMessage,
+                    new HashSpillableTableFactory(partionFactory, hashTableSize), merge ? true : false);
+            setLocationConstraint(spec, localGby);
+
+            IClusteredAggregatorDescriptorFactory aggregatorFactoryFinal = DataflowUtils
+                    .getAccumulatingAggregatorFactory(getConfigurationFactory(), true, true);
+            /**
+             * construct global group-by operator
+             */
+            if (merge) {
+                IOperatorDescriptor globalGby = new ClusteredGroupOperatorDescriptor(spec, keyFields, sortCmpFactories,
+                        aggregatorFactoryFinal, rdFinal);
+                setLocationConstraint(spec, globalGby);
+
+                spec.connect(
+                        new edu.uci.ics.pregelix.dataflow.std.connectors.MToNPartitioningMergingConnectorDescriptor(
+                                spec, partionFactory, keyFields), localGby, 0, globalGby, 0);
+                return Pair.of(localGby, globalGby);
+            } else {
+                IAggregatorDescriptorFactory finalAggregatorFactory = DataflowUtils.getSerializableAggregatorFactory(
+                        getConfigurationFactory(), true, true);
+                IOperatorDescriptor globalGby = new ExternalGroupOperatorDescriptor(spec, keyFields, frameLimit,
+                        sortCmpFactories, nkmFactory, partialAggregatorFactory, finalAggregatorFactory,
+                        rdCombinedMessage, new HashSpillableTableFactory(partionFactory, hashTableSize), false);
+                setLocationConstraint(spec, globalGby);
+
+                spec.connect(new MToNPartitioningConnectorDescriptor(spec, partionFactory), localGby, 0, globalGby, 0);
+                return Pair.of(localGby, globalGby);
+            }
+        }
+    }
+
+    public IConfigurationFactory getConfigurationFactory() {
+        return confFactory;
+    }
 }
