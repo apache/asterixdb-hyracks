@@ -15,8 +15,13 @@
 package edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical;
 
 import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.lang3.mutable.Mutable;
 
 import edu.uci.ics.hyracks.algebricks.common.exceptions.AlgebricksException;
+import edu.uci.ics.hyracks.algebricks.common.utils.Pair;
+import edu.uci.ics.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import edu.uci.ics.hyracks.algebricks.core.algebra.expressions.IVariableTypeEnvironment;
@@ -28,9 +33,19 @@ import edu.uci.ics.hyracks.algebricks.core.algebra.visitors.ILogicalOperatorVisi
 public class ReplicateOperator extends AbstractLogicalOperator {
 
     private int outputArity = 2;
+    private boolean[] outputMaterializationFlags = new boolean[outputArity];
+    private List<Mutable<ILogicalOperator>> outputs;
 
     public ReplicateOperator(int outputArity) {
         this.outputArity = outputArity;
+        this.outputMaterializationFlags = new boolean[outputArity];
+        this.outputs = new ArrayList<Mutable<ILogicalOperator>>();
+    }
+
+    public ReplicateOperator(int outputArity, boolean[] outputMaterializationFlags) {
+        this.outputArity = outputArity;
+        this.outputMaterializationFlags = outputMaterializationFlags;
+        this.outputs = new ArrayList<Mutable<ILogicalOperator>>();
     }
 
     @Override
@@ -71,9 +86,43 @@ public class ReplicateOperator extends AbstractLogicalOperator {
         return outputArity;
     }
 
+    public int setOutputArity(int outputArity) {
+        return this.outputArity = outputArity;
+    }
+
+    public boolean[] getOutputMaterializationFlags() {
+        return outputMaterializationFlags;
+    }
+
+    public List<Mutable<ILogicalOperator>> getOutputs() {
+        return outputs;
+    }
+
     @Override
     public IVariableTypeEnvironment computeOutputTypeEnvironment(ITypingContext ctx) throws AlgebricksException {
         return createPropagatingAllInputsTypeEnvironment(ctx);
     }
 
+    @Override
+    public Pair<int[], int[]> getInputOutputDependencyLabels() {
+        int[] inputDependencyLabels = new int[] { 0 };
+        int[] outputDependencyLabels = new int[outputArity];
+        // change the labels of outputs that requires materialization to 1
+        for (int i = 0; i < outputArity; i++) {
+            if (outputMaterializationFlags[i]) {
+                outputDependencyLabels[i] = 1;
+            }
+        }
+        return new Pair<int[], int[]>(inputDependencyLabels, outputDependencyLabels);
+    }
+
+    @Override
+    public boolean isBlocker() {
+        for (boolean requiresMaterialization : outputMaterializationFlags) {
+            if (requiresMaterialization) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

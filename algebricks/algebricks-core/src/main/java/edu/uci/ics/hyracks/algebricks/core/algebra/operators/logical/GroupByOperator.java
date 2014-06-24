@@ -29,6 +29,7 @@ import edu.uci.ics.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.LogicalExpressionTag;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.LogicalVariable;
+import edu.uci.ics.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
 import edu.uci.ics.hyracks.algebricks.core.algebra.expressions.IVariableTypeEnvironment;
 import edu.uci.ics.hyracks.algebricks.core.algebra.expressions.VariableReferenceExpression;
 import edu.uci.ics.hyracks.algebricks.core.algebra.properties.TypePropagationPolicy;
@@ -274,4 +275,27 @@ public class GroupByOperator extends AbstractOperatorWithNestedPlans {
         return env;
     }
 
+    @Override
+    public Pair<int[], int[]> getInputOutputDependencyLabels() {
+        int[] inputDependencyLabels = new int[] { 0 };
+        int[] outputDependencyLabels;
+        PhysicalOperatorTag physicalOpTag = this.getPhysicalOperator().getOperatorTag();
+        if (physicalOpTag == PhysicalOperatorTag.PRE_CLUSTERED_GROUP_BY
+                || physicalOpTag == PhysicalOperatorTag.MICRO_PRE_CLUSTERED_GROUP_BY) {
+            outputDependencyLabels = new int[] { 0 };
+        } else {
+            outputDependencyLabels = new int[] { 1 };
+        }
+        return new Pair<int[], int[]>(inputDependencyLabels, outputDependencyLabels);
+    }
+
+    @Override
+    public boolean isBlocker() {
+        PhysicalOperatorTag physicalOpTag = this.getPhysicalOperator().getOperatorTag();
+        if (physicalOpTag == PhysicalOperatorTag.PRE_CLUSTERED_GROUP_BY
+                || physicalOpTag == PhysicalOperatorTag.MICRO_PRE_CLUSTERED_GROUP_BY) {
+            return false;
+        }
+        return true;
+    }
 }
