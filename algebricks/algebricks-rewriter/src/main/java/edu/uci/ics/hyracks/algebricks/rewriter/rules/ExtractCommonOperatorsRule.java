@@ -15,6 +15,7 @@
 package edu.uci.ics.hyracks.algebricks.rewriter.rules;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,6 +52,7 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
     private HashMap<Mutable<ILogicalOperator>, List<Mutable<ILogicalOperator>>> childrenToParents = new HashMap<Mutable<ILogicalOperator>, List<Mutable<ILogicalOperator>>>();
     private List<Mutable<ILogicalOperator>> roots = new ArrayList<Mutable<ILogicalOperator>>();
     private List<List<Mutable<ILogicalOperator>>> equivalenceClasses = new ArrayList<List<Mutable<ILogicalOperator>>>();
+    private HashMap<Mutable<ILogicalOperator>, BitSet> opToCandidateInputs = new HashMap<Mutable<ILogicalOperator>, BitSet>();
     private static HashSet<LogicalOperatorTag> opsWorthMaterialization = new HashSet<LogicalOperatorTag>();
     static {
         opsWorthMaterialization.add(LogicalOperatorTag.SELECT);
@@ -101,6 +103,7 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
                     rewritten = changed;
                 equivalenceClasses.clear();
                 childrenToParents.clear();
+                opToCandidateInputs.clear();
             } while (changed);
             roots.clear();
         }
@@ -316,19 +319,34 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
         candidates.clear();
         boolean validCandidate = false;
         for (Mutable<ILogicalOperator> op : opList) {
-            for (Mutable<ILogicalOperator> inputRef : op.getValue().getInputs()) {
+            List<Mutable<ILogicalOperator>> inputs = op.getValue().getInputs();
+            for (int i = 0; i < inputs.size(); i++) {
+                Mutable<ILogicalOperator> inputRef = inputs.get(i);
                 validCandidate = false;
-                // if current input is in candidates
-                for (Mutable<ILogicalOperator> candidate : previousCandidates)
-                    if (inputRef.getValue().equals(candidate.getValue()))
-                        validCandidate = true;
-                // if one input is not in candidates
-                if (!validCandidate)
-                    break;
+                for (Mutable<ILogicalOperator> candidate : previousCandidates) {
+                    // if current input is in candidates
+                    if (inputRef.getValue().equals(candidate.getValue())) {
+                        if (inputs.size() == 1) {
+                            validCandidate = true;
+                        } else {
+                            BitSet candidateInputBitMap = opToCandidateInputs.get(op);
+                            if (candidateInputBitMap == null) {
+                                candidateInputBitMap = new BitSet(inputs.size());
+                                opToCandidateInputs.put(op, candidateInputBitMap);
+                            }
+                            candidateInputBitMap.set(i);
+                            if (candidateInputBitMap.cardinality() == inputs.size()) {
+                                validCandidate = true;
+                            }
+                        }
+                        break;
+                    }
+                }
             }
             if (!validCandidate)
                 continue;
-            candidates.add(op);
+            if (!candidates.contains(op))
+                candidates.add(op);
         }
     }
 
