@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -53,8 +54,8 @@ import edu.uci.ics.pregelix.example.io.VLongWritable;
 public class PageRankVertex extends Vertex<VLongWritable, DoubleWritable, FloatWritable, DoubleWritable> {
 
     public static final String ITERATIONS = "HyracksPageRankVertex.iteration";
-    private DoubleWritable outputValue = new DoubleWritable();
-    private DoubleWritable tmpVertexValue = new DoubleWritable();
+    private final DoubleWritable outputValue = new DoubleWritable();
+    private final DoubleWritable tmpVertexValue = new DoubleWritable();
     private int maxIteration = -1;
 
     /**
@@ -62,7 +63,7 @@ public class PageRankVertex extends Vertex<VLongWritable, DoubleWritable, FloatW
      */
     public static class SimpleSumCombiner extends MessageCombiner<VLongWritable, DoubleWritable, DoubleWritable> {
         private double sum = 0.0;
-        private DoubleWritable agg = new DoubleWritable();
+        private final DoubleWritable agg = new DoubleWritable();
         private MsgList<DoubleWritable> msgList;
 
         @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -95,13 +96,32 @@ public class PageRankVertex extends Vertex<VLongWritable, DoubleWritable, FloatW
             msgList.add(agg);
             return msgList;
         }
+
+        @Override
+        public void setPartialCombineState(DoubleWritable combineState) {
+            sum = combineState.get();
+        }
+
+        @Override
+        public void stepPartial2(VLongWritable vertexIndex, DoubleWritable partialAggregate)
+                throws HyracksDataException {
+            sum += partialAggregate.get();
+        }
+
+        @Override
+        public DoubleWritable finishPartial2() {
+            agg.set(sum);
+            return agg;
+        }
+    }
+
+    @Override
+    public void configure(Configuration conf){
+        maxIteration = conf.getInt(ITERATIONS, 10);
     }
 
     @Override
     public void compute(Iterator<DoubleWritable> msgIterator) {
-        if (maxIteration < 0) {
-            maxIteration = getContext().getConfiguration().getInt(ITERATIONS, 10);
-        }
         if (getSuperstep() == 1) {
             tmpVertexValue.set(1.0 / getNumVertices());
             setVertexValue(tmpVertexValue);
@@ -111,7 +131,7 @@ public class PageRankVertex extends Vertex<VLongWritable, DoubleWritable, FloatW
             while (msgIterator.hasNext()) {
                 sum += msgIterator.next().get();
             }
-            tmpVertexValue.set((0.15 / getNumVertices()) + 0.85 * sum);
+            tmpVertexValue.set(0.15 / getNumVertices() + 0.85 * sum);
             setVertexValue(tmpVertexValue);
         }
 
@@ -131,7 +151,7 @@ public class PageRankVertex extends Vertex<VLongWritable, DoubleWritable, FloatW
             GeneratedVertexReader<VLongWritable, DoubleWritable, FloatWritable, DoubleWritable> {
         /** Class logger */
         private static final Logger LOG = Logger.getLogger(SimulatedPageRankVertexReader.class.getName());
-        private Map<VLongWritable, FloatWritable> edges = Maps.newHashMap();
+        private final Map<VLongWritable, FloatWritable> edges = Maps.newHashMap();
 
         public SimulatedPageRankVertexReader() {
             super();
@@ -148,7 +168,7 @@ public class PageRankVertex extends Vertex<VLongWritable, DoubleWritable, FloatW
             Vertex<VLongWritable, DoubleWritable, FloatWritable, DoubleWritable> vertex = BspUtils
                     .createVertex(configuration);
 
-            VLongWritable vertexId = new VLongWritable((inputSplit.getSplitIndex() * totalRecords) + recordsRead);
+            VLongWritable vertexId = new VLongWritable(inputSplit.getSplitIndex() * totalRecords + recordsRead);
             DoubleWritable vertexValue = new DoubleWritable(vertexId.get() * 10d);
             long destVertexId = (vertexId.get() + 1) % (inputSplit.getNumSplits() * totalRecords);
             float edgeValue = vertexId.get() * 100f;
@@ -219,6 +239,7 @@ public class PageRankVertex extends Vertex<VLongWritable, DoubleWritable, FloatW
         job.setMessageCombinerClass(PageRankVertex.SimpleSumCombiner.class);
         job.setNoramlizedKeyComputerClass(VLongNormalizedKeyComputer.class);
         job.setFixedVertexValueSize(true);
+        job.setSkipCombinerKey(true);
         Client.run(args, job);
     }
 

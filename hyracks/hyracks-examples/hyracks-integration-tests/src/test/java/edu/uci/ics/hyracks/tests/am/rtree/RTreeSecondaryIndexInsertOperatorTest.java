@@ -45,6 +45,10 @@ import edu.uci.ics.hyracks.storage.am.rtree.frames.RTreePolicyType;
 
 public class RTreeSecondaryIndexInsertOperatorTest extends AbstractRTreeOperatorTest {
 
+    public RTreeSecondaryIndexInsertOperatorTest() {
+        this.rTreeType = RTreeType.RTREE;
+    }
+
     @Before
     public void setup() throws Exception {
         super.setup();
@@ -87,7 +91,7 @@ public class RTreeSecondaryIndexInsertOperatorTest extends AbstractRTreeOperator
         RTreeSearchOperatorDescriptor secondarySearchOp = new RTreeSearchOperatorDescriptor(spec, secondaryRecDesc,
                 storageManager, lcManagerProvider, secondarySplitProvider, secondaryTypeTraits,
                 secondaryComparatorFactories, keyFields, rtreeDataflowHelperFactory, false,
-                NoOpOperationCallbackFactory.INSTANCE);
+                false, null, NoOpOperationCallbackFactory.INSTANCE);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, secondarySearchOp, NC1_ID);
 
         // fifth field from the tuples coming from secondary index
@@ -99,7 +103,7 @@ public class RTreeSecondaryIndexInsertOperatorTest extends AbstractRTreeOperator
         BTreeSearchOperatorDescriptor primarySearchOp = new BTreeSearchOperatorDescriptor(spec, primaryRecDesc,
                 storageManager, lcManagerProvider, primarySplitProvider, primaryTypeTraits, primaryComparatorFactories,
                 null, primaryLowKeyFields, primaryHighKeyFields, true, true, btreeDataflowHelperFactory, false,
-                NoOpOperationCallbackFactory.INSTANCE);
+                false, null, NoOpOperationCallbackFactory.INSTANCE);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, primarySearchOp, NC1_ID);
 
         IFileSplitProvider outSplits = new ConstantFileSplitProvider(new FileSplit[] { new FileSplit(NC1_ID,
@@ -118,8 +122,8 @@ public class RTreeSecondaryIndexInsertOperatorTest extends AbstractRTreeOperator
     @Override
     protected IIndexDataflowHelperFactory createDataFlowHelperFactory(
             IPrimitiveValueProviderFactory[] secondaryValueProviderFactories, RTreePolicyType rtreePolicyType,
-            IBinaryComparatorFactory[] btreeComparatorFactories, ILinearizeComparatorFactory linearizerCmpFactory)
-            throws TreeIndexException {
+            IBinaryComparatorFactory[] btreeComparatorFactories, ILinearizeComparatorFactory linearizerCmpFactory,
+            int[] btreeFields) throws TreeIndexException {
         return ((RTreeOperatorTestHelper) testHelper).createDataFlowHelperFactory(secondaryValueProviderFactories,
                 rtreePolicyType, null);
     }

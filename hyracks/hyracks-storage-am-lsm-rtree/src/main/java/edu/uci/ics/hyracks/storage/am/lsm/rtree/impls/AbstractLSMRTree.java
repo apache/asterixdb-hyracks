@@ -61,14 +61,12 @@ public abstract class AbstractLSMRTree extends AbstractLSMIndex implements ITree
     protected final int[] comparatorFields;
     protected final IBinaryComparatorFactory[] linearizerArray;
 
-    protected TreeTupleSorter rTreeTupleSorter;
-
     // On-disk components.
     // For creating RTree's used in flush and merge.
     protected final ILSMComponentFactory componentFactory;
 
-    private IBinaryComparatorFactory[] btreeCmpFactories;
-    private IBinaryComparatorFactory[] rtreeCmpFactories;
+    protected IBinaryComparatorFactory[] btreeCmpFactories;
+    protected IBinaryComparatorFactory[] rtreeCmpFactories;
 
     // Common for in-memory and on-disk components.
     protected final ITreeIndexFrameFactory rtreeInteriorFrameFactory;
@@ -97,8 +95,8 @@ public abstract class AbstractLSMRTree extends AbstractLSMIndex implements ITree
             BTree memBTree = new BTree(virtualBufferCache,
                     ((IVirtualBufferCache) virtualBufferCache).getFileMapProvider(), new VirtualFreePageManager(
                             virtualBufferCache.getNumPages()), btreeInteriorFrameFactory, btreeLeafFrameFactory,
-                    btreeCmpFactories, fieldCount, new FileReference(new File(fileManager.getBaseDir() + "_virtual_b_"
-                            + i)));
+                    btreeCmpFactories, btreeCmpFactories.length, new FileReference(new File(fileManager.getBaseDir()
+                            + "_virtual_b_" + i)));
             LSMRTreeMemoryComponent mutableComponent = new LSMRTreeMemoryComponent(memRTree, memBTree,
                     virtualBufferCache, i == 0 ? true : false);
             memoryComponents.add(mutableComponent);
@@ -115,7 +113,31 @@ public abstract class AbstractLSMRTree extends AbstractLSMIndex implements ITree
         this.linearizer = linearizer;
         this.comparatorFields = comparatorFields;
         this.linearizerArray = linearizerArray;
-        rTreeTupleSorter = null;
+    }
+    
+    /*
+     * For External indexes with no memory components
+     */
+    public AbstractLSMRTree(ITreeIndexFrameFactory rtreeInteriorFrameFactory,
+            ITreeIndexFrameFactory rtreeLeafFrameFactory, ITreeIndexFrameFactory btreeInteriorFrameFactory,
+            ITreeIndexFrameFactory btreeLeafFrameFactory, ILSMIndexFileManager fileManager,
+            ILSMComponentFactory componentFactory, IFileMapProvider diskFileMapProvider, int fieldCount,
+            IBinaryComparatorFactory[] rtreeCmpFactories, IBinaryComparatorFactory[] btreeCmpFactories,
+            ILinearizeComparatorFactory linearizer, int[] comparatorFields, IBinaryComparatorFactory[] linearizerArray,
+            double bloomFilterFalsePositiveRate, ILSMMergePolicy mergePolicy, ILSMOperationTracker opTracker,
+            ILSMIOOperationScheduler ioScheduler, ILSMIOOperationCallback ioOpCallback) {
+        super(componentFactory.getBufferCache(), fileManager, diskFileMapProvider, bloomFilterFalsePositiveRate,
+                mergePolicy, opTracker, ioScheduler, ioOpCallback);
+        this.rtreeInteriorFrameFactory = rtreeInteriorFrameFactory;
+        this.rtreeLeafFrameFactory = rtreeLeafFrameFactory;
+        this.btreeInteriorFrameFactory = btreeInteriorFrameFactory;
+        this.btreeLeafFrameFactory = btreeLeafFrameFactory;
+        this.componentFactory = componentFactory;
+        this.btreeCmpFactories = btreeCmpFactories;
+        this.rtreeCmpFactories = rtreeCmpFactories;
+        this.linearizer = linearizer;
+        this.comparatorFields = comparatorFields;
+        this.linearizerArray = linearizerArray;
     }
 
     @Override
@@ -152,8 +174,7 @@ public abstract class AbstractLSMRTree extends AbstractLSMIndex implements ITree
         }
 
         if (flushOnExit) {
-            BlockingIOOperationCallbackWrapper cb = new BlockingIOOperationCallbackWrapper(
-                    ioOpCallback);
+            BlockingIOOperationCallbackWrapper cb = new BlockingIOOperationCallbackWrapper(ioOpCallback);
             ILSMIndexAccessor accessor = createAccessor(NoOpOperationCallback.INSTANCE, NoOpOperationCallback.INSTANCE);
             accessor.scheduleFlush(cb);
             try {
@@ -226,6 +247,7 @@ public abstract class AbstractLSMRTree extends AbstractLSMIndex implements ITree
                 break;
             case FULL_MERGE:
                 operationalComponents.addAll(immutableComponents);
+                break;
             default:
                 throw new UnsupportedOperationException("Operation " + ctx.getOperation() + " not supported.");
         }

@@ -19,7 +19,7 @@ import edu.uci.ics.hyracks.storage.am.lsm.invertedindex.api.IInvertedIndexSearch
 
 public class ListEditDistanceSearchModifier implements IInvertedIndexSearchModifier {
 
-    private int edThresh;
+    protected int edThresh;
 
     public ListEditDistanceSearchModifier(int edThresh) {
         this.edThresh = edThresh;
@@ -51,5 +51,10 @@ public class ListEditDistanceSearchModifier implements IInvertedIndexSearchModif
     @Override
     public short getNumTokensUpperBound(short numQueryTokens) {
         return (short) (numQueryTokens + edThresh);
+    }
+    
+    @Override
+    public String toString() {
+        return "List Edit Distance Search Modifier, Threshold: " + edThresh;
     }
 }
