@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.lang3.mutable.Mutable;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.mutable.MutableObject;
 
 import edu.uci.ics.hyracks.algebricks.common.exceptions.AlgebricksException;
@@ -53,6 +54,9 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
     private List<Mutable<ILogicalOperator>> roots = new ArrayList<Mutable<ILogicalOperator>>();
     private List<List<Mutable<ILogicalOperator>>> equivalenceClasses = new ArrayList<List<Mutable<ILogicalOperator>>>();
     private HashMap<Mutable<ILogicalOperator>, BitSet> opToCandidateInputs = new HashMap<Mutable<ILogicalOperator>, BitSet>();
+    private HashMap<Mutable<ILogicalOperator>, MutableInt> clusterMap = new HashMap<Mutable<ILogicalOperator>, MutableInt>();
+    private HashMap<Integer, BitSet> clusterWaitForMap = new HashMap<Integer, BitSet>();
+    private int lastUsedClusterId = 0;
     private static HashSet<LogicalOperatorTag> opsWorthMaterialization = new HashSet<LogicalOperatorTag>();
     static {
         opsWorthMaterialization.add(LogicalOperatorTag.SELECT);
@@ -104,6 +108,9 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
                 equivalenceClasses.clear();
                 childrenToParents.clear();
                 opToCandidateInputs.clear();
+                clusterMap.clear();
+                clusterWaitForMap.clear();
+                lastUsedClusterId = 0;
             } while (changed);
             roots.clear();
         }
@@ -390,20 +397,23 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
     }
 
     private boolean[] computeMaterilizationFlags(List<Mutable<ILogicalOperator>> group) {
-        List<List<Mutable<ILogicalOperator>>> clusters = new ArrayList<List<Mutable<ILogicalOperator>>>();
-        List<Mutable<ILogicalOperator>> blockedOps = new ArrayList<Mutable<ILogicalOperator>>();
-        for (Mutable<ILogicalOperator> opRef : group) {
-            List<Mutable<ILogicalOperator>> cluster = new ArrayList<Mutable<ILogicalOperator>>();
-            computeDependency(null, opRef, blockedOps, cluster, false);
-            clusters.add(cluster);
+        lastUsedClusterId = 0;
+        for (Mutable<ILogicalOperator> root : roots) {
+            computeClusters(null, root, new MutableInt(++lastUsedClusterId));
         }
         boolean[] materializationFlags = new boolean[group.size()];
         boolean worthMaterialization = worthMaterialization(group.get(0));
         boolean requiresMaterialization;
+        // get clusterIds for each candidate in the group
+        List<Integer> groupClusterIds = new ArrayList<Integer>(group.size());
+        for (int i = 0; i < group.size(); i++) {
+            groupClusterIds.add(clusterMap.get(group.get(i)).getValue());
+        }
         for (int i = group.size() - 1; i >= 0; i--) {
-            requiresMaterialization = requiresMaterialization(clusters.get(i), blockedOps);
+            requiresMaterialization = requiresMaterialization(groupClusterIds, i);
             if (requiresMaterialization && !worthMaterialization) {
                 group.remove(i);
+                groupClusterIds.remove(i);
             }
             materializationFlags[i] = requiresMaterialization;
         }
@@ -414,59 +424,80 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
         return worthMaterialization ? materializationFlags : new boolean[group.size()];
     }
 
-    private void computeDependency(Mutable<ILogicalOperator> inputRef, Mutable<ILogicalOperator> opRef,
-            List<Mutable<ILogicalOperator>> blockedOps, List<Mutable<ILogicalOperator>> cluster, boolean foundBlocker) {
-        List<Mutable<ILogicalOperator>> parentRefList = childrenToParents.get(opRef);
-        if (parentRefList != null) {
-            Pair<int[], int[]> labels = null;
-            int inputIndex = 0;
-            if (opRef.getValue().isBlocker() && inputRef != null) {
-                labels = opRef.getValue().getInputOutputDependencyLabels();
-                List<Mutable<ILogicalOperator>> inputs = opRef.getValue().getInputs();
-                for (inputIndex = 0; inputIndex < inputs.size(); inputIndex++) {
-                    if (inputs.get(inputIndex).equals(inputRef)) {
-                        break;
-                    }
+    private boolean requiresMaterialization(List<Integer> groupClusterIds, int index) {
+        Integer clusterId = groupClusterIds.get(index);
+        BitSet blockingClusters = new BitSet();
+        getAllBlockingClusterIds(clusterId, blockingClusters);
+        if (!blockingClusters.isEmpty()) {
+            for (int i = 0; i < groupClusterIds.size(); i++) {
+                if (i == index) {
+                    continue;
                 }
-            }
-            for (Mutable<ILogicalOperator> parentRef : parentRefList) {
-                boolean foundBlockerForCurPath = foundBlocker;
-                if (opRef.getValue().isBlocker() && inputRef != null) {
-                    // only replicate operator has multiple outputs
-                    int outputIndex = 0;
-                    if (opRef.getValue().getOperatorTag() == LogicalOperatorTag.REPLICATE) {
-                        ReplicateOperator rop = (ReplicateOperator) opRef.getValue();
-                        List<Mutable<ILogicalOperator>> outputs = rop.getOutputs();
-                        for (outputIndex = 0; outputIndex < outputs.size(); outputIndex++) {
-                            if (outputs.get(outputIndex).equals(parentRef)) {
-                                break;
-                            }
-                        }
-                    }
-                    if (labels.second[outputIndex] == 1) {
-                        if (labels.first[inputIndex] == 1) { // 1 -> 1
-                            if (!foundBlocker) {
-                                cluster.add(opRef);
-                            }
-                        } else { // 0 -> 1
-                            blockedOps.add(opRef);
-                            foundBlockerForCurPath = true;
-                        }
-                    }
+                if (blockingClusters.get(groupClusterIds.get(i))) {
+                    return true;
                 }
-                computeDependency(opRef, parentRef, blockedOps, cluster, foundBlockerForCurPath);
-            }
-        }
-    }
-
-    private boolean requiresMaterialization(List<Mutable<ILogicalOperator>> cluster,
-            List<Mutable<ILogicalOperator>> blockedOps) {
-        for (Mutable<ILogicalOperator> op : cluster) {
-            if (blockedOps.contains(op)) {
-                return true;
             }
         }
         return false;
+    }
+
+    private void getAllBlockingClusterIds(int clusterId, BitSet blockingClusters) {
+        BitSet waitFor = clusterWaitForMap.get(clusterId);
+        if (waitFor != null) {
+            for (int i = waitFor.nextSetBit(0); i >= 0; i = waitFor.nextSetBit(i + 1)) {
+                getAllBlockingClusterIds(i, blockingClusters);
+            }
+            blockingClusters.or(waitFor);
+        }
+    }
+
+    private void computeClusters(Mutable<ILogicalOperator> parentRef, Mutable<ILogicalOperator> opRef,
+            MutableInt currentClusterId) {
+        // only replicate operator has multiple outputs
+        int outputIndex = 0;
+        if (opRef.getValue().getOperatorTag() == LogicalOperatorTag.REPLICATE) {
+            ReplicateOperator rop = (ReplicateOperator) opRef.getValue();
+            List<Mutable<ILogicalOperator>> outputs = rop.getOutputs();
+            for (outputIndex = 0; outputIndex < outputs.size(); outputIndex++) {
+                if (outputs.get(outputIndex).equals(parentRef)) {
+                    break;
+                }
+            }
+        }
+        Pair<int[], int[]> labels = opRef.getValue().getInputOutputDependencyLabels();
+        List<Mutable<ILogicalOperator>> inputs = opRef.getValue().getInputs();
+        for (int i = 0; i < inputs.size(); i++) {
+            Mutable<ILogicalOperator> inputRef = inputs.get(i);
+            if (labels.second[outputIndex] == 1 && labels.first[i] == 0) { // 1 -> 0
+                if (labels.second.length == 1) {
+                    clusterMap.put(opRef, currentClusterId);
+                    // start a new cluster
+                    MutableInt newClusterId = new MutableInt(++lastUsedClusterId);
+                    computeClusters(opRef, inputRef, newClusterId);
+                    BitSet waitForList = clusterWaitForMap.get(currentClusterId.getValue());
+                    if (waitForList == null) {
+                        waitForList = new BitSet();
+                        clusterWaitForMap.put(currentClusterId.getValue(), waitForList);
+                    }
+                    waitForList.set(newClusterId.getValue());
+                }
+            } else { // 0 -> 0 and 1 -> 1
+                MutableInt prevClusterId = clusterMap.get(opRef);
+                if (prevClusterId == null || prevClusterId.getValue().equals(currentClusterId.getValue())) {
+                    clusterMap.put(opRef, currentClusterId);
+                    computeClusters(opRef, inputRef, currentClusterId);
+                } else {
+                    // merge prevClusterId and currentClusterId: update all the map entries that has currentClusterId to prevClusterId
+                    for (BitSet bs : clusterWaitForMap.values()) {
+                        if (bs.get(currentClusterId.getValue())) {
+                            bs.clear(currentClusterId.getValue());
+                            bs.set(prevClusterId.getValue());
+                        }
+                    }
+                    currentClusterId.setValue(prevClusterId.getValue());
+                }
+            }
+        }
     }
 
     private boolean worthMaterialization(Mutable<ILogicalOperator> candidate) {
