@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import org.apache.commons.lang3.mutable.Mutable;
 
 import edu.uci.ics.hyracks.algebricks.common.exceptions.AlgebricksException;
+import edu.uci.ics.hyracks.algebricks.common.utils.Pair;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.ILogicalExpression;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.LogicalVariable;
@@ -74,5 +75,17 @@ public abstract class AbstractBinaryJoinOperator extends AbstractLogicalOperator
     @Override
     public boolean isMap() {
         return false;
+    }
+
+    @Override
+    public Pair<int[], int[]> getInputOutputDependencyLabels() {
+        int[] inputDependencyLabels = new int[] { 1, 0 };
+        int[] outputDependencyLabels = new int[] { 1 };
+        return new Pair<int[], int[]>(inputDependencyLabels, outputDependencyLabels);
+    }
+
+    @Override
+    public boolean isBlocker() {
+        return true;
     }
 }
