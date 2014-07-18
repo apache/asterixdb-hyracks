@@ -464,7 +464,8 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
                 }
             }
         }
-        Pair<int[], int[]> labels = opRef.getValue().getInputOutputDependencyLabels();
+        AbstractLogicalOperator aop = (AbstractLogicalOperator) opRef.getValue();
+        Pair<int[], int[]> labels = aop.getPhysicalOperator().getInputOutputDependencyLabels(opRef.getValue());
         List<Mutable<ILogicalOperator>> inputs = opRef.getValue().getInputs();
         for (int i = 0; i < inputs.size(); i++) {
             Mutable<ILogicalOperator> inputRef = inputs.get(i);

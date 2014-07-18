@@ -15,6 +15,7 @@
 package edu.uci.ics.hyracks.algebricks.core.algebra.base;
 
 import edu.uci.ics.hyracks.algebricks.common.exceptions.AlgebricksException;
+import edu.uci.ics.hyracks.algebricks.common.utils.Pair;
 import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.IOperatorSchema;
 import edu.uci.ics.hyracks.algebricks.core.algebra.properties.IPhysicalPropertiesVector;
 import edu.uci.ics.hyracks.algebricks.core.algebra.properties.PhysicalRequirements;
@@ -57,4 +58,10 @@ public interface IPhysicalOperator {
     public void setHostQueryContext(Object context);
 
     public Object getHostQueryContext();
+
+    /**
+     * @return labels (0 or 1) for each input and output indicating the dependency between them.
+     *         The edges labeled as 1 must wait for the edges with label 0.
+     */
+    public Pair<int[], int[]> getInputOutputDependencyLabels(ILogicalOperator op);
 }
