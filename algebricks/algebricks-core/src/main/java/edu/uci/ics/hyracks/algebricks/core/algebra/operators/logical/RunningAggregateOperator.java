@@ -64,6 +64,11 @@ public class RunningAggregateOperator extends AbstractAssignOperator {
     }
 
     @Override
+    public boolean expensiveThanMaterialization() {
+        return true;
+    }
+
+    @Override
     public IVariableTypeEnvironment computeOutputTypeEnvironment(ITypingContext ctx) throws AlgebricksException {
         IVariableTypeEnvironment env = createPropagatingAllInputsTypeEnvironment(ctx);
         int n = variables.size();

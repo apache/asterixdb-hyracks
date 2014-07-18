@@ -71,6 +71,11 @@ public class ProjectOperator extends AbstractLogicalOperator {
         return true;
     }
 
+    @Override
+    public boolean expensiveThanMaterialization() {
+        return true;
+    }
+
     public List<LogicalVariable> getVariables() {
         return variables;
     }

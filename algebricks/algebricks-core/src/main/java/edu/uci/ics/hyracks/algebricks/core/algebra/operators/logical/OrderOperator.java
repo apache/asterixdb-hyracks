@@ -153,6 +153,11 @@ public class OrderOperator extends AbstractLogicalOperator {
     }
 
     @Override
+    public boolean expensiveThanMaterialization() {
+        return true;
+    }
+
+    @Override
     public IVariableTypeEnvironment computeOutputTypeEnvironment(ITypingContext ctx) throws AlgebricksException {
         return createPropagatingAllInputsTypeEnvironment(ctx);
     }

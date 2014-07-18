@@ -132,4 +132,8 @@ public class UnnestMapOperator extends AbstractUnnestOperator {
     }
     */
 
+    @Override
+    public boolean expensiveThanMaterialization() {
+        return true;
+    }
 }

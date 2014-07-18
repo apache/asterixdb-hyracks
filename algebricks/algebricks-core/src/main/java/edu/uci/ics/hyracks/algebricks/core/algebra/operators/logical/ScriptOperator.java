@@ -89,6 +89,11 @@ public class ScriptOperator extends AbstractLogicalOperator {
     }
 
     @Override
+    public boolean expensiveThanMaterialization() {
+        return false;
+    }
+
+    @Override
     public void recomputeSchema() {
         this.schema = outputVariables;
     }

@@ -75,4 +75,9 @@ public abstract class AbstractBinaryJoinOperator extends AbstractLogicalOperator
     public boolean isMap() {
         return false;
     }
+
+    @Override
+    public boolean expensiveThanMaterialization() {
+        return true;
+    }
 }

@@ -76,6 +76,11 @@ public class ExternalDataLookupOperator extends AbstractScanOperator {
         return false;
     }
 
+    @Override
+    public boolean expensiveThanMaterialization() {
+        return false;
+    }
+
     public boolean isPropagateInput() {
         return propagateInput;
     }

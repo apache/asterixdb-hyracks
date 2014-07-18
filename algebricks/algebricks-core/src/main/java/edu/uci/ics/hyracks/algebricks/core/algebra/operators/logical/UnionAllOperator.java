@@ -100,6 +100,11 @@ public class UnionAllOperator extends AbstractLogicalOperator {
     }
 
     @Override
+    public boolean expensiveThanMaterialization() {
+        return false;
+    }
+
+    @Override
     public IVariableTypeEnvironment computeOutputTypeEnvironment(ITypingContext ctx) throws AlgebricksException {
         IVariableTypeEnvironment env = new NonPropagatingTypeEnvironment(ctx.getExpressionTypeComputer(),
                 ctx.getMetadataProvider());

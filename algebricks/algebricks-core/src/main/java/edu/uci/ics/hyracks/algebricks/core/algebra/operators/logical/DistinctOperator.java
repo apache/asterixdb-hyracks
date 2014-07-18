@@ -101,6 +101,11 @@ public class DistinctOperator extends AbstractLogicalOperator {
         return false;
     }
 
+    @Override
+    public boolean expensiveThanMaterialization() {
+        return true;
+    }
+
     public List<LogicalVariable> getDistinctByVarList() {
         List<LogicalVariable> varList = new ArrayList<LogicalVariable>(expressions.size());
         for (Mutable<ILogicalExpression> eRef : expressions) {

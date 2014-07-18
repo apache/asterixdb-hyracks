@@ -83,6 +83,11 @@ public class IndexInsertDeleteOperator extends AbstractLogicalOperator {
     }
 
     @Override
+    public boolean expensiveThanMaterialization() {
+        return false;
+    }
+
+    @Override
     public VariablePropagationPolicy getVariablePropagationPolicy() {
         return VariablePropagationPolicy.ALL;
     }

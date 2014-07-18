@@ -72,6 +72,11 @@ public class DataSourceScanOperator extends AbstractScanOperator {
         return false;
     }
 
+    @Override
+    public boolean expensiveThanMaterialization() {
+        return false;
+    }
+
     public void addProjectVariables(Collection<LogicalVariable> vars) {
         projectVars.addAll(vars);
         projectPushed = true;

@@ -88,6 +88,11 @@ public class WriteResultOperator extends AbstractLogicalOperator {
     }
 
     @Override
+    public boolean expensiveThanMaterialization() {
+        return false;
+    }
+
+    @Override
     public void recomputeSchema() {
         schema = new ArrayList<LogicalVariable>();
         schema.addAll(inputs.get(0).getValue().getSchema());
