@@ -73,11 +73,6 @@ public class ReplicateOperator extends AbstractLogicalOperator {
     }
 
     @Override
-    public boolean expensiveThanMaterialization() {
-        return false;
-    }
-
-    @Override
     public void recomputeSchema() {
         schema = new ArrayList<LogicalVariable>(inputs.get(0).getValue().getSchema());
     }

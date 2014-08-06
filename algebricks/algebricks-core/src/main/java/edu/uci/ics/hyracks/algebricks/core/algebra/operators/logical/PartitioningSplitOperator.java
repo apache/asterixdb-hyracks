@@ -108,11 +108,6 @@ public class PartitioningSplitOperator extends AbstractLogicalOperator {
     }
 
     @Override
-    public boolean expensiveThanMaterialization() {
-        return false;
-    }
-
-    @Override
     public IVariableTypeEnvironment computeOutputTypeEnvironment(ITypingContext ctx) throws AlgebricksException {
         return createPropagatingAllInputsTypeEnvironment(ctx);
     }

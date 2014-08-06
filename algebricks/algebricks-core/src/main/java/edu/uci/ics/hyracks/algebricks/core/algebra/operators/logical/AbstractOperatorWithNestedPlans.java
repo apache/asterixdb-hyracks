@@ -83,11 +83,6 @@ public abstract class AbstractOperatorWithNestedPlans extends AbstractLogicalOpe
         return false;
     }
 
-    @Override
-    public boolean expensiveThanMaterialization() {
-        return true;
-    }
-
     public abstract void getUsedVariablesExceptNestedPlans(Collection<LogicalVariable> vars);
 
     public abstract void getProducedVariablesExceptNestedPlans(Collection<LogicalVariable> vars);

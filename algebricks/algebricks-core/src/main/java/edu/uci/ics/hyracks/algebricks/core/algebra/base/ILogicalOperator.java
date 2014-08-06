@@ -56,13 +56,6 @@ public interface ILogicalOperator {
 
     public boolean isMap();
 
-    /*
-     * This is needed to have a kind of cost based decision on whether to merge the shared subplans and materialize the result.
-     * If the subgraph whose result we would like to materialize has an operator that is computationally expensive, we assume
-     * it is cheaper to materialize the result of this subgraph and read from the file rather than recomputing it.
-     */
-    public boolean expensiveThanMaterialization();
-
     public Map<String, Object> getAnnotations();
 
     public void removeAnnotation(String annotationName);

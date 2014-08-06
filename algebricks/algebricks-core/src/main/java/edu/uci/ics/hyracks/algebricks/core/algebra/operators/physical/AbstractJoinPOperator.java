@@ -46,4 +46,9 @@ public abstract class AbstractJoinPOperator extends AbstractPhysicalOperator {
         int[] outputDependencyLabels = new int[] { 1 };
         return new Pair<int[], int[]>(inputDependencyLabels, outputDependencyLabels);
     }
+
+    @Override
+    public boolean expensiveThanMaterialization() {
+        return true;
+    }
 }

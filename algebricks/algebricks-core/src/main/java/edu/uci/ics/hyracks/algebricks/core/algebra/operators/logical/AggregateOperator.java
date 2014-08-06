@@ -71,11 +71,6 @@ public class AggregateOperator extends AbstractAssignOperator {
     }
 
     @Override
-    public boolean expensiveThanMaterialization() {
-        return true;
-    }
-
-    @Override
     public void recomputeSchema() {
         schema = new ArrayList<LogicalVariable>();
         schema.addAll(variables);

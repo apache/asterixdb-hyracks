@@ -141,9 +141,4 @@ public class UnnestOperator extends AbstractUnnestOperator {
             }
         };
     }
-
-    @Override
-    public boolean expensiveThanMaterialization() {
-        return false;
-    }
 }

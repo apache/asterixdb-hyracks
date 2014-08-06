@@ -79,4 +79,8 @@ public class MaterializerTaskState extends AbstractStateObject {
             writer.close();
         }
     }
+    
+    public void deleteFile() {
+        out.getFileReference().delete();
+    }
 }

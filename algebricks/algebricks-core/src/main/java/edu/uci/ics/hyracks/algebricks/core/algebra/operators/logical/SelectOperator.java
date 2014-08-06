@@ -90,11 +90,6 @@ public class SelectOperator extends AbstractLogicalOperator {
     }
 
     @Override
-    public boolean expensiveThanMaterialization() {
-        return true;
-    }
-
-    @Override
     public IVariableTypeEnvironment computeOutputTypeEnvironment(ITypingContext ctx) throws AlgebricksException {
         ITypeEnvPointer[] envPointers = new ITypeEnvPointer[1];
         envPointers[0] = new OpRefTypeEnvPointer(inputs.get(0), ctx);

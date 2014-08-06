@@ -82,11 +82,6 @@ public class NestedTupleSourceOperator extends AbstractLogicalOperator {
     }
 
     @Override
-    public boolean expensiveThanMaterialization() {
-        return false;
-    }
-
-    @Override
     public IVariableTypeEnvironment computeOutputTypeEnvironment(final ITypingContext ctx) throws AlgebricksException {
         ITypeEnvPointer[] p = new ITypeEnvPointer[1];
         p[0] = new ITypeEnvPointer() {

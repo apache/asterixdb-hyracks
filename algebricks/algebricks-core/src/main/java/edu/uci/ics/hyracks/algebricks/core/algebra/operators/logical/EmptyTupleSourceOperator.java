@@ -61,11 +61,6 @@ public class EmptyTupleSourceOperator extends AbstractLogicalOperator {
     }
 
     @Override
-    public boolean expensiveThanMaterialization() {
-        return false;
-    }
-
-    @Override
     public IVariableTypeEnvironment computeOutputTypeEnvironment(final ITypingContext ctx) throws AlgebricksException {
         return new IVariableTypeEnvironment() {
 
