@@ -26,4 +26,13 @@ public class HiveNullableTypeComputer implements INullableTypeComputer {
         return type;
     }
 
+    @Override
+    public boolean canBeNull(Object type) {
+        return false;
+    }
+
+    @Override
+    public Object getNonOptionalType(Object type) {
+        return type;
+    }
 }
