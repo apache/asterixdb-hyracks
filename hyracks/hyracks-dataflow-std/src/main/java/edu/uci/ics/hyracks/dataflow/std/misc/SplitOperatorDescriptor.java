@@ -41,6 +41,7 @@ public class SplitOperatorDescriptor extends AbstractOperatorDescriptor {
     private boolean[] outputMaterializationFlags;
     private boolean requiresMaterialization;
     private int numberOfNonMaterializedOutputs = 0;
+    private int numberOfActiveMaterializeReaders = 0;
 
     public SplitOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor rDesc, int outputArity) {
         this(spec, rDesc, outputArity, new boolean[outputArity]);
@@ -87,6 +88,7 @@ public class SplitOperatorDescriptor extends AbstractOperatorDescriptor {
                     builder.addActivity(this, mra);
                     builder.addTargetEdge(i, mra, 0);
                     builder.addBlockingEdge(sma, mra);
+                    numberOfActiveMaterializeReaders++;
                     activityId++;
                 }
             }
@@ -178,6 +180,12 @@ public class SplitOperatorDescriptor extends AbstractOperatorDescriptor {
 
                 @Override
                 public void deinitialize() throws HyracksDataException {
+                    numberOfActiveMaterializeReaders--;
+                    MaterializerTaskState state = (MaterializerTaskState) ctx.getStateObject(new TaskId(new ActivityId(
+                            getOperatorId(), SPLITTER_MATERIALIZER_ACTIVITY_ID), partition));
+                    if (numberOfActiveMaterializeReaders == 0) {
+                        state.deleteFile();
+                    }
                 }
             };
         }

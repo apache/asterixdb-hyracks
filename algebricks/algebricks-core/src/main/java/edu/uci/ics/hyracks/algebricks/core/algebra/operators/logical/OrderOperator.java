@@ -156,16 +156,4 @@ public class OrderOperator extends AbstractLogicalOperator {
     public IVariableTypeEnvironment computeOutputTypeEnvironment(ITypingContext ctx) throws AlgebricksException {
         return createPropagatingAllInputsTypeEnvironment(ctx);
     }
-
-    @Override
-    public Pair<int[], int[]> getInputOutputDependencyLabels() {
-        int[] inputDependencyLabels = new int[] { 0 };
-        int[] outputDependencyLabels = new int[] { 1 };
-        return new Pair<int[], int[]>(inputDependencyLabels, outputDependencyLabels);
-    }
-
-    @Override
-    public boolean isBlocker() {
-        return true;
-    }
 }

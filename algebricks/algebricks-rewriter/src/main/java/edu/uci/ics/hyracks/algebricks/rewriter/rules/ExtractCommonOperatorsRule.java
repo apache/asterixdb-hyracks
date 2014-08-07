@@ -57,20 +57,6 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
     private HashMap<Mutable<ILogicalOperator>, MutableInt> clusterMap = new HashMap<Mutable<ILogicalOperator>, MutableInt>();
     private HashMap<Integer, BitSet> clusterWaitForMap = new HashMap<Integer, BitSet>();
     private int lastUsedClusterId = 0;
-    private static HashSet<LogicalOperatorTag> opsWorthMaterialization = new HashSet<LogicalOperatorTag>();
-    static {
-        opsWorthMaterialization.add(LogicalOperatorTag.SELECT);
-        opsWorthMaterialization.add(LogicalOperatorTag.INNERJOIN);
-        opsWorthMaterialization.add(LogicalOperatorTag.LEFTOUTERJOIN);
-        opsWorthMaterialization.add(LogicalOperatorTag.PROJECT);
-        opsWorthMaterialization.add(LogicalOperatorTag.GROUP);
-        opsWorthMaterialization.add(LogicalOperatorTag.ORDER);
-        opsWorthMaterialization.add(LogicalOperatorTag.AGGREGATE);
-        opsWorthMaterialization.add(LogicalOperatorTag.RUNNINGAGGREGATE);
-        opsWorthMaterialization.add(LogicalOperatorTag.DISTINCT);
-        opsWorthMaterialization.add(LogicalOperatorTag.LIMIT);
-        opsWorthMaterialization.add(LogicalOperatorTag.UNNEST_MAP);
-    }
 
     @Override
     public boolean rewritePre(Mutable<ILogicalOperator> opRef, IOptimizationContext context) throws AlgebricksException {
@@ -464,7 +450,8 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
                 }
             }
         }
-        Pair<int[], int[]> labels = opRef.getValue().getInputOutputDependencyLabels();
+        AbstractLogicalOperator aop = (AbstractLogicalOperator) opRef.getValue();
+        Pair<int[], int[]> labels = aop.getPhysicalOperator().getInputOutputDependencyLabels(opRef.getValue());
         List<Mutable<ILogicalOperator>> inputs = opRef.getValue().getInputs();
         for (int i = 0; i < inputs.size(); i++) {
             Mutable<ILogicalOperator> inputRef = inputs.get(i);
@@ -501,7 +488,8 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
     }
 
     private boolean worthMaterialization(Mutable<ILogicalOperator> candidate) {
-        if (opsWorthMaterialization.contains(candidate.getValue().getOperatorTag())) {
+        AbstractLogicalOperator aop = (AbstractLogicalOperator) candidate.getValue();
+        if (aop.getPhysicalOperator().expensiveThanMaterialization()) {
             return true;
         }
         List<Mutable<ILogicalOperator>> inputs = candidate.getValue().getInputs();

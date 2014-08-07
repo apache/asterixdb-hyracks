@@ -20,7 +20,6 @@ import java.util.List;
 import org.apache.commons.lang3.mutable.Mutable;
 
 import edu.uci.ics.hyracks.algebricks.common.exceptions.AlgebricksException;
-import edu.uci.ics.hyracks.algebricks.common.utils.Pair;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.LogicalVariable;
@@ -103,20 +102,6 @@ public class ReplicateOperator extends AbstractLogicalOperator {
         return createPropagatingAllInputsTypeEnvironment(ctx);
     }
 
-    @Override
-    public Pair<int[], int[]> getInputOutputDependencyLabels() {
-        int[] inputDependencyLabels = new int[] { 0 };
-        int[] outputDependencyLabels = new int[outputArity];
-        // change the labels of outputs that requires materialization to 1
-        for (int i = 0; i < outputArity; i++) {
-            if (outputMaterializationFlags[i]) {
-                outputDependencyLabels[i] = 1;
-            }
-        }
-        return new Pair<int[], int[]>(inputDependencyLabels, outputDependencyLabels);
-    }
-
-    @Override
     public boolean isBlocker() {
         for (boolean requiresMaterialization : outputMaterializationFlags) {
             if (requiresMaterialization) {

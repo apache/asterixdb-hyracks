@@ -20,7 +20,6 @@ import java.util.Map;
 import org.apache.commons.lang3.mutable.Mutable;
 
 import edu.uci.ics.hyracks.algebricks.common.exceptions.AlgebricksException;
-import edu.uci.ics.hyracks.algebricks.common.utils.Pair;
 import edu.uci.ics.hyracks.algebricks.core.algebra.expressions.IVariableTypeEnvironment;
 import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.AbstractLogicalOperator.ExecutionMode;
 import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.IOperatorSchema;
@@ -45,10 +44,6 @@ public interface ILogicalOperator {
     public void recomputeSchema() throws AlgebricksException;
 
     public List<LogicalVariable> getSchema();
-
-    public Pair<int[], int[]> getInputOutputDependencyLabels();
-
-    public boolean isBlocker();
 
     /*
      * 
