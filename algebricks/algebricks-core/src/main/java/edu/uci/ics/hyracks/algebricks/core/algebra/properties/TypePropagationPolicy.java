@@ -36,7 +36,7 @@ public abstract class TypePropagationPolicy {
                 }
                 Object t = env.getVarType(var, nonNullVariableList, correlatedNullableVariableLists);
                 if (t != null) {
-                    if (ntc.canBeNull(t)) {
+                    if (ntc != null && ntc.canBeNull(t)) {
                         for (List<LogicalVariable> list : correlatedNullableVariableLists) {
                             if (list.contains(var)) {
                                 for (LogicalVariable v : list) {
