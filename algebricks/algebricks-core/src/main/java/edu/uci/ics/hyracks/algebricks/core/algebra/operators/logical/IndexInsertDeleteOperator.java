@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,6 +24,7 @@ import edu.uci.ics.hyracks.algebricks.core.algebra.base.ILogicalExpression;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import edu.uci.ics.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import edu.uci.ics.hyracks.algebricks.core.algebra.expressions.IVariableTypeEnvironment;
+import edu.uci.ics.hyracks.algebricks.core.algebra.metadata.IDataSource;
 import edu.uci.ics.hyracks.algebricks.core.algebra.metadata.IDataSourceIndex;
 import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.InsertDeleteOperator.Kind;
 import edu.uci.ics.hyracks.algebricks.core.algebra.properties.VariablePropagationPolicy;
@@ -35,19 +36,24 @@ public class IndexInsertDeleteOperator extends AbstractLogicalOperator {
 
     private final IDataSourceIndex<?, ?> dataSourceIndex;
     private final List<Mutable<ILogicalExpression>> primaryKeyExprs;
+    // In the bulk-load case on ngram or keyword index,
+    // it contains [token, number of token] or [token].
+    // Otherwise, it contains secondary key information.
     private final List<Mutable<ILogicalExpression>> secondaryKeyExprs;
     private final Mutable<ILogicalExpression> filterExpr;
     private final Kind operation;
+    private final boolean bulkload;
     private List<Mutable<ILogicalExpression>> additionalFilteringExpressions;
 
     public IndexInsertDeleteOperator(IDataSourceIndex<?, ?> dataSourceIndex,
             List<Mutable<ILogicalExpression>> primaryKeyExprs, List<Mutable<ILogicalExpression>> secondaryKeyExprs,
-            Mutable<ILogicalExpression> filterExpr, Kind operation) {
+            Mutable<ILogicalExpression> filterExpr, Kind operation, boolean bulkload) {
         this.dataSourceIndex = dataSourceIndex;
         this.primaryKeyExprs = primaryKeyExprs;
         this.secondaryKeyExprs = secondaryKeyExprs;
         this.filterExpr = filterExpr;
         this.operation = operation;
+        this.bulkload = bulkload;
     }
 
     @Override
@@ -105,6 +111,10 @@ public class IndexInsertDeleteOperator extends AbstractLogicalOperator {
         return dataSourceIndex;
     }
 
+    public String getIndexName() {
+        return dataSourceIndex.getId().toString();
+    }
+
     public List<Mutable<ILogicalExpression>> getSecondaryKeyExpressions() {
         return secondaryKeyExprs;
     }
@@ -115,6 +125,10 @@ public class IndexInsertDeleteOperator extends AbstractLogicalOperator {
 
     public Kind getOperation() {
         return operation;
+    }
+
+    public boolean isBulkload() {
+        return bulkload;
     }
 
     public void setAdditionalFilteringExpressions(List<Mutable<ILogicalExpression>> additionalFilteringExpressions) {
