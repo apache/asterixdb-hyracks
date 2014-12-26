@@ -89,6 +89,10 @@ public class ReplicateOperator extends AbstractLogicalOperator {
         return this.outputArity = outputArity;
     }
 
+    public void setOutputMaterializationFlags(boolean[] outputMaterializationFlags) {
+        this.outputMaterializationFlags = outputMaterializationFlags;
+    }
+
     public boolean[] getOutputMaterializationFlags() {
         return outputMaterializationFlags;
     }
