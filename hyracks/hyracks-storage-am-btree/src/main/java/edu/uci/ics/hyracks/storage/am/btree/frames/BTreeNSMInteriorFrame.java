@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
+import edu.uci.ics.hyracks.data.std.primitive.IntegerPointable;
 import edu.uci.ics.hyracks.dataflow.common.data.accessors.ITupleReference;
 import edu.uci.ics.hyracks.dataflow.common.data.marshalling.IntegerSerializerDeserializer;
 import edu.uci.ics.hyracks.storage.am.btree.api.IBTreeInteriorFrame;
@@ -66,8 +67,12 @@ public class BTreeNSMInteriorFrame extends TreeIndexNSMFrame implements IBTreeIn
 
     @Override
     public int findInsertTupleIndex(ITupleReference tuple) throws TreeIndexException {
-        return slotManager.findTupleIndex(tuple, frameTuple, cmp, FindTupleMode.INCLUSIVE,
-                FindTupleNoExactMatchPolicy.HIGHER_KEY);
+        try {
+            return slotManager.findTupleIndex(tuple, frameTuple, cmp, FindTupleMode.INCLUSIVE,
+                    FindTupleNoExactMatchPolicy.HIGHER_KEY);
+        } catch (HyracksDataException e) {
+            throw new TreeIndexException(e);
+        }
     }
 
     @Override
@@ -113,8 +118,12 @@ public class BTreeNSMInteriorFrame extends TreeIndexNSMFrame implements IBTreeIn
 
     @Override
     public int findDeleteTupleIndex(ITupleReference tuple) throws TreeIndexException {
-        return slotManager.findTupleIndex(tuple, frameTuple, cmp, FindTupleMode.INCLUSIVE,
-                FindTupleNoExactMatchPolicy.HIGHER_KEY);
+        try {
+            return slotManager.findTupleIndex(tuple, frameTuple, cmp, FindTupleMode.INCLUSIVE,
+                    FindTupleNoExactMatchPolicy.HIGHER_KEY);
+        } catch (HyracksDataException e) {
+            throw new TreeIndexException(e);
+        }
     }
 
     @Override
@@ -181,11 +190,12 @@ public class BTreeNSMInteriorFrame extends TreeIndexNSMFrame implements IBTreeIn
     }
 
     @Override
-    public void split(ITreeIndexFrame rightFrame, ITupleReference tuple, ISplitKey splitKey) {
+    public void split(ITreeIndexFrame rightFrame, ITupleReference tuple, ISplitKey splitKey)
+            throws HyracksDataException {
         ByteBuffer right = rightFrame.getBuffer();
         int tupleCount = getTupleCount();
 
-        // Find split point, and determine into which frame the new tuple should be inserted into.  
+        // Find split point, and determine into which frame the new tuple should be inserted into.
         ITreeIndexFrame targetFrame = null;
         frameTuple.resetByTupleIndex(this, tupleCount - 1);
         int tuplesToLeft;
@@ -420,10 +430,8 @@ public class BTreeNSMInteriorFrame extends TreeIndexNSMFrame implements IBTreeIn
         for (int i = 0; i < tupleCount; i++) {
             int tupleOff = slotManager.getTupleOff(slotManager.getSlotOff(i));
             frameTuple.resetByTupleOffset(buf, tupleOff);
-            int intVal = IntegerSerializerDeserializer.getInt(
-                    buf.array(),
-                    frameTuple.getFieldStart(frameTuple.getFieldCount() - 1)
-                            + frameTuple.getFieldLength(frameTuple.getFieldCount() - 1));
+            int intVal = IntegerPointable.getInteger(buf.array(), frameTuple.getFieldStart(frameTuple.getFieldCount() - 1)
+            + frameTuple.getFieldLength(frameTuple.getFieldCount() - 1));
             ret.add(intVal);
         }
         if (!isLeaf()) {

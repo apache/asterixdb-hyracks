@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,6 +22,7 @@ import java.util.List;
 import edu.uci.ics.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
 import edu.uci.ics.hyracks.api.io.FileReference;
+import edu.uci.ics.hyracks.data.std.primitive.IntegerPointable;
 import edu.uci.ics.hyracks.dataflow.common.data.accessors.ITupleReference;
 import edu.uci.ics.hyracks.dataflow.common.data.marshalling.IntegerSerializerDeserializer;
 import edu.uci.ics.hyracks.storage.am.bloomfilter.impls.BloomCalculations;
@@ -272,7 +273,7 @@ public class LSMBTree extends AbstractLSMIndex implements ITreeIndex {
     }
 
     @Override
-    public void getOperationalComponents(ILSMIndexOperationContext ctx) {
+    public void getOperationalComponents(ILSMIndexOperationContext ctx) throws HyracksDataException {
         List<ILSMComponent> immutableComponents = diskComponents;
         List<ILSMComponent> operationalComponents = ctx.getComponentHolder();
         int cmc = currentMutableComponentId.get();
@@ -369,8 +370,7 @@ public class LSMBTree extends AbstractLSMIndex implements ITreeIndex {
     private boolean insert(ITupleReference tuple, LSMBTreeOpContext ctx) throws HyracksDataException, IndexException {
         ILSMComponent c = ctx.getComponentHolder().get(0);
         LSMBTreeMemoryComponent mutableComponent = (LSMBTreeMemoryComponent) c;
-        MultiComparator comparator = MultiComparator.createIgnoreFieldLength(mutableComponent.getBTree()
-                .getComparatorFactories());
+        MultiComparator comparator = MultiComparator.create(mutableComponent.getBTree().getComparatorFactories());
         LSMBTreePointSearchCursor searchCursor = new LSMBTreePointSearchCursor(ctx);
         IIndexCursor memCursor = new BTreeRangeSearchCursor(ctx.currentMutableBTreeOpCtx.leafFrame, false);
         RangePredicate predicate = new RangePredicate(tuple, tuple, true, true, comparator, comparator);
@@ -461,8 +461,7 @@ public class LSMBTree extends AbstractLSMIndex implements ITreeIndex {
             while (countingCursor.hasNext()) {
                 countingCursor.next();
                 ITupleReference countTuple = countingCursor.getTuple();
-                numElements = IntegerSerializerDeserializer.getInt(countTuple.getFieldData(0),
-                        countTuple.getFieldStart(0));
+                numElements = IntegerPointable.getInteger(countTuple.getFieldData(0), countTuple.getFieldStart(0));
             }
         } finally {
             countingCursor.close();
