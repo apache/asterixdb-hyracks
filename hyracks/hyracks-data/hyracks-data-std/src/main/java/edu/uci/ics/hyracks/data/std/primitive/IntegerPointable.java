@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -52,6 +52,16 @@ public final class IntegerPointable extends AbstractPointable implements IHashab
     };
 
     public static int getInteger(byte[] bytes, int start) {
+
+        //        System.out
+        //                .println("IntegerPointable.getInteger() bytes.length:"
+        //                        + bytes.length
+        //                        + " start:"
+        //                        + start
+        //                        + " getInteger():"
+        //                        + (((bytes[start] & 0xff) << 24) + ((bytes[start + 1] & 0xff) << 16)
+        //                                + ((bytes[start + 2] & 0xff) << 8) + ((bytes[start + 3] & 0xff) << 0)));
+
         return ((bytes[start] & 0xff) << 24) + ((bytes[start + 1] & 0xff) << 16) + ((bytes[start + 2] & 0xff) << 8)
                 + ((bytes[start + 3] & 0xff) << 0);
     }

@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -217,7 +217,7 @@ public class JobScheduler {
      * Runnability rank has the following semantics
      * Runnability(Runnable TaskCluster depending on completed TaskClusters) = {RUNNABLE, 0}
      * Runnability(Runnable TaskCluster) = max(Rank(Dependent TaskClusters)) + 1
-     * Runnability(Non-schedulable TaskCluster) = {NOT_RUNNABLE, _} 
+     * Runnability(Non-schedulable TaskCluster) = {NOT_RUNNABLE, _}
      */
     private Runnability assignRunnabilityRank(TaskCluster goal, Map<TaskCluster, Runnability> runnabilityMap) {
         if (LOGGER.isLoggable(Level.FINE)) {
@@ -622,7 +622,7 @@ public class JobScheduler {
 
     /**
      * Indicates that a single task attempt has encountered a failure.
-     * 
+     *
      * @param ta
      *            - Failed Task Attempt
      * @param ac
@@ -657,7 +657,7 @@ public class JobScheduler {
 
     /**
      * Indicates that the provided set of nodes have left the cluster.
-     * 
+     *
      * @param deadNodes
      *            - Set of failed nodes
      */

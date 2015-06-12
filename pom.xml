@@ -161,6 +161,10 @@
             <exclude>**/current/VERSION</exclude>
             <exclude>**/blk_*</exclude>
             <exclude>**/resources/conf/*</exclude>
+            <exclude>**/*.project</exclude>
+            <exclude>**/org.eclipse.jdt.core.prefs</exclude>
+            <exclude>**/org.eclipse.m2e.core.prefs</exclude>
+            <exclude>**/*.classpath</exclude>
           </excludes>
         </configuration>
       </plugin>

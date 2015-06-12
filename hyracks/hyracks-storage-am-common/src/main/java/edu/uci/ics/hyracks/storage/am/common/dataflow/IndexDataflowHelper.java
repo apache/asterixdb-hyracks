@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -76,8 +76,8 @@ public abstract class IndexDataflowHelper implements IIndexDataflowHelper {
                 index = createIndexInstance();
             }
 
-            // The previous resource ID needs to be removed since calling IIndex.create() may possibly destroy 
-            // any physical artifact that the LocalResourceRepository is managing (e.g. a file containing the resource ID). 
+            // The previous resource ID needs to be removed since calling IIndex.create() may possibly destroy
+            // any physical artifact that the LocalResourceRepository is managing (e.g. a file containing the resource ID).
             // Once the index has been created, a new resource ID can be generated.
             if (resourceID != -1) {
                 localResourceRepository.deleteResourceByName(file.getFile().getPath());
@@ -158,5 +158,10 @@ public abstract class IndexDataflowHelper implements IIndexDataflowHelper {
     @Override
     public IHyracksTaskContext getTaskContext() {
         return ctx;
+    }
+
+    @Override
+    public boolean needKeyDuplicateCheck() {
+        return false;
     }
 }

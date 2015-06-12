@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -41,7 +41,7 @@ import edu.uci.ics.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 /**
  * Pushes projections through its input operator, provided that operator does
  * not produce the projected variables.
- * 
+ *
  * @author Nicola
  */
 public class PushProjectDownRule implements IAlgebraicRewriteRule {
@@ -83,6 +83,7 @@ public class PushProjectDownRule implements IAlgebraicRewriteRule {
                     || op2.getOperatorTag() == LogicalOperatorTag.NESTEDTUPLESOURCE
                     || op2.getOperatorTag() == LogicalOperatorTag.PROJECT
                     || op2.getOperatorTag() == LogicalOperatorTag.REPLICATE
+                    || op2.getOperatorTag() == LogicalOperatorTag.SPLIT
                     || op2.getOperatorTag() == LogicalOperatorTag.UNIONALL) {
                 return new Pair<Boolean, Boolean>(false, false);
             }

@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -143,7 +143,8 @@ public class ExtractCommonExpressionsRule implements IAlgebraicRewriteRule {
 
         // TODO: Deal with replicate properly. Currently, we just clear the expr equivalence map, since we want to avoid incorrect expression replacement
         // (the resulting new variables should be assigned live below a replicate).
-        if (op.getOperatorTag() == LogicalOperatorTag.REPLICATE) {
+        if (op.getOperatorTag() == LogicalOperatorTag.REPLICATE ||
+        	op.getOperatorTag() == LogicalOperatorTag.SPLIT) {
             exprEqClassMap.clear();
             return modified;
         }
@@ -192,7 +193,7 @@ public class ExtractCommonExpressionsRule implements IAlgebraicRewriteRule {
         }
 
         // TODO: For now do not perform replacement in nested plans
-        // due to the complication of figuring out whether the firstOp in an equivalence class is within a subplan, 
+        // due to the complication of figuring out whether the firstOp in an equivalence class is within a subplan,
         // and the resulting variable will not be visible to the outside.
         // Since subplans should be eliminated in most cases, this behavior is acceptable for now.
         /*
@@ -234,7 +235,7 @@ public class ExtractCommonExpressionsRule implements IAlgebraicRewriteRule {
             boolean modified = false;
             ExprEquivalenceClass exprEqClass = exprEqClassMap.get(expr);
             if (exprEqClass != null) {
-                // Replace common subexpression with existing variable. 
+                // Replace common subexpression with existing variable.
                 if (exprEqClass.variableIsSet()) {
                     Set<LogicalVariable> liveVars = new HashSet<LogicalVariable>();
                     List<LogicalVariable> usedVars = new ArrayList<LogicalVariable>();

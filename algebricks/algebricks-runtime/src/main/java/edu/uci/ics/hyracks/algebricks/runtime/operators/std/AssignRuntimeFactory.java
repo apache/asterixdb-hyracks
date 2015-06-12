@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,6 +25,9 @@ import edu.uci.ics.hyracks.algebricks.runtime.operators.base.AbstractOneInputOne
 import edu.uci.ics.hyracks.api.comm.IFrameTupleAccessor;
 import edu.uci.ics.hyracks.api.context.IHyracksTaskContext;
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
+import edu.uci.ics.hyracks.api.util.ExecutionTimeProfiler;
+import edu.uci.ics.hyracks.api.util.ExecutionTimeStopWatch;
+import edu.uci.ics.hyracks.api.util.OperatorExecutionTimeProfiler;
 import edu.uci.ics.hyracks.data.std.api.IPointable;
 import edu.uci.ics.hyracks.data.std.primitive.VoidPointable;
 import edu.uci.ics.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
@@ -93,8 +96,31 @@ public class AssignRuntimeFactory extends AbstractOneInputOneOutputRuntimeFactor
             private ArrayTupleBuilder tupleBuilder = new ArrayTupleBuilder(projectionList.length);
             private boolean first = true;
 
+            // Added to measure the execution time when the profiler setting is enabled
+            protected ExecutionTimeStopWatch profilerSW;
+            protected String nodeJobSignature;
+            protected String taskId;
+
             @Override
             public void open() throws HyracksDataException {
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW = new ExecutionTimeStopWatch();
+                    profilerSW.start();
+
+                    // The key of this job: nodeId + JobId + Joblet hash code
+                    nodeJobSignature = ctx.getJobletContext().getApplicationContext().getNodeId() + "_"
+                            + ctx.getJobletContext().getJobId() + "_" + ctx.getJobletContext().hashCode();
+
+                    // taskId: partition + taskId + started time
+                    taskId = ctx.getTaskAttemptId() + this.toString() + profilerSW.getStartTimeStamp();
+
+                    // Initialize the counter for this runtime instance
+                    OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId,
+                            ExecutionTimeProfiler.INIT, false);
+                    System.out.println("ASSIGN open() " + nodeJobSignature + " " + taskId);
+                }
+
                 if (first) {
                     initAccessAppendRef(ctx);
                     first = false;
@@ -112,6 +138,11 @@ public class AssignRuntimeFactory extends AbstractOneInputOneOutputRuntimeFactor
 
             @Override
             public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.resume();
+                }
+
                 tAccess.reset(buffer);
                 int nTuple = tAccess.getTupleCount();
                 int t = 0;
@@ -119,18 +150,36 @@ public class AssignRuntimeFactory extends AbstractOneInputOneOutputRuntimeFactor
                     for (; t < nTuple - 1; t++) {
                         tRef.reset(tAccess, t);
                         produceTuple(tupleBuilder, tAccess, t, tRef);
-                        appendToFrameFromTupleBuilder(tupleBuilder);
+                        // Added to measure the execution time when the profiler setting is enabled
+                        if (!ExecutionTimeProfiler.PROFILE_MODE) {
+                            appendToFrameFromTupleBuilder(tupleBuilder);
+                        } else {
+                            appendToFrameFromTupleBuilder(tupleBuilder, false, profilerSW);
+                        }
                     }
                 }
 
                 tRef.reset(tAccess, t);
                 produceTuple(tupleBuilder, tAccess, t, tRef);
                 if (flushFramesRapidly) {
-                    // Whenever all the tuples in the incoming frame have been consumed, the assign operator 
-                    // will push its frame to the next operator; i.e., it won't wait until the frame gets full. 
-                    appendToFrameFromTupleBuilder(tupleBuilder, true);
+                    // Whenever all the tuples in the incoming frame have been consumed, the assign operator
+                    // will push its frame to the next operator; i.e., it won't wait until the frame gets full.
+                    if (!ExecutionTimeProfiler.PROFILE_MODE) {
+                        appendToFrameFromTupleBuilder(tupleBuilder, true);
+                    } else {
+                        appendToFrameFromTupleBuilder(tupleBuilder, true, profilerSW);
+                    }
                 } else {
-                    appendToFrameFromTupleBuilder(tupleBuilder);
+                    if (!ExecutionTimeProfiler.PROFILE_MODE) {
+                        appendToFrameFromTupleBuilder(tupleBuilder);
+                    } else {
+                        appendToFrameFromTupleBuilder(tupleBuilder, false, profilerSW);
+                    }
+                }
+
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.suspend();
                 }
             }
 
@@ -156,6 +205,27 @@ public class AssignRuntimeFactory extends AbstractOneInputOneOutputRuntimeFactor
             public void fail() throws HyracksDataException {
                 writer.fail();
             }
+
+            @Override
+            public void close() throws HyracksDataException {
+                if (!ExecutionTimeProfiler.PROFILE_MODE) {
+                    flushIfNotFailed(null);
+                } else {
+                    flushIfNotFailed(profilerSW);
+                }
+                writer.close();
+
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.finish();
+                    OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId,
+                            profilerSW.getMessage("ASSIGN\t" + ctx.getTaskAttemptId() + "\t" + this.toString(),
+                                    profilerSW.getStartTimeStamp()), false);
+                    System.out.println("ASSIGN close() " + nodeJobSignature + " " + taskId);
+                }
+
+            }
+
         };
     }
 }

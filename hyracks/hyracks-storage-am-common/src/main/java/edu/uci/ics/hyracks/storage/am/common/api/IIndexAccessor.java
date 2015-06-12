@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,6 +15,7 @@
 
 package edu.uci.ics.hyracks.storage.am.common.api;
 
+import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
 import edu.uci.ics.hyracks.dataflow.common.data.accessors.ITupleReference;
 
@@ -27,7 +28,7 @@ import edu.uci.ics.hyracks.dataflow.common.data.accessors.ITupleReference;
 public interface IIndexAccessor {
     /**
      * Inserts the given tuple.
-     * 
+     *
      * @param tuple
      *            Tuple to be inserted.
      * @throws HyracksDataException
@@ -41,7 +42,7 @@ public interface IIndexAccessor {
     /**
      * Updates the tuple in the index matching the given tuple with the new
      * contents in the given tuple.
-     * 
+     *
      * @param tuple
      *            Tuple whose match in the index is to be update with the given
      *            tuples contents.
@@ -54,7 +55,7 @@ public interface IIndexAccessor {
 
     /**
      * Deletes the tuple in the index matching the given tuple.
-     * 
+     *
      * @param tuple
      *            Tuple to be deleted.
      * @throws HyracksDataException
@@ -68,27 +69,33 @@ public interface IIndexAccessor {
      * This operation is only supported by indexes with the notion of a unique key.
      * If tuple's key already exists, then this operation performs an update.
      * Otherwise, it performs an insert.
-     * 
+     *
      * @param tuple
      *            Tuple to be deleted.
      * @throws HyracksDataException
      *             If the BufferCache throws while un/pinning or un/latching.
      * @throws IndexException
      *             If there is no matching tuple in the index.
-     * 
      */
     public void upsert(ITupleReference tuple) throws HyracksDataException, IndexException;
-    
+
     /**
      * Creates a cursor appropriate for passing into search().
-     * 
      */
     public IIndexCursor createSearchCursor(boolean exclusive);
 
     /**
+     * Creates a cursor appropriate for passing into search().
+     * In this case, cursor will add one more field to an output of an index.
+     * The field will contain the result of OperationCallback.proceed().
+     */
+    public IIndexCursor createSearchCursor(boolean exclusive, boolean useOperationCallbackProceedReturnResult,
+            RecordDescriptor rDesc, byte[] valuesForOperationCallbackProceedReturnResult);
+
+    /**
      * Open the given cursor for an index search using the given predicate as
      * search condition.
-     * 
+     *
      * @param icursor
      *            Cursor over the index entries satisfying searchPred.
      * @param searchPred

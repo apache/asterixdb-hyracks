@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Set;
 
 import edu.uci.ics.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
 import edu.uci.ics.hyracks.api.io.FileReference;
 import edu.uci.ics.hyracks.dataflow.common.data.accessors.ITupleReference;
@@ -646,6 +647,13 @@ public class ExternalBTreeWithBuddy extends AbstractLSMIndex implements ITreeInd
             return new LSMBTreeWithBuddySearchCursor(ctx, buddyBTreeFields);
         }
 
+        @Override
+        public IIndexCursor createSearchCursor(boolean exclusive, boolean useOperationCallbackProceedReturnResult,
+                RecordDescriptor rDesc, byte[] valuesForOperationCallbackProceedReturnResult) {
+            // This method is only required for the LSM based indexes
+            return new LSMBTreeWithBuddySearchCursor(ctx, buddyBTreeFields);
+        }
+
         public MultiComparator getBTreeMultiComparator() {
             ExternalBTreeWithBuddyOpContext concreteCtx = (ExternalBTreeWithBuddyOpContext) ctx;
             return concreteCtx.getBTreeMultiComparator();
@@ -655,6 +663,7 @@ public class ExternalBTreeWithBuddy extends AbstractLSMIndex implements ITreeInd
             ExternalBTreeWithBuddyOpContext concreteCtx = (ExternalBTreeWithBuddyOpContext) ctx;
             return concreteCtx.getBuddyBTreeMultiComparator();
         }
+
     }
 
     // The bulk loader used for both initial loading and transaction

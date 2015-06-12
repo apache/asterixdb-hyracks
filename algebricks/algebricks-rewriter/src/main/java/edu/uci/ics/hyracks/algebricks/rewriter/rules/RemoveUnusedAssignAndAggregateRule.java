@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -57,7 +57,15 @@ public class RemoveUnusedAssignAndAggregateRule implements IAlgebraicRewriteRule
             return false;
         }
         Set<LogicalVariable> toRemove = new HashSet<LogicalVariable>();
-        collectUnusedAssignedVars((AbstractLogicalOperator) opRef.getValue(), toRemove, true, context);
+        Set<LogicalVariable> toKeep = new HashSet<LogicalVariable>();
+        collectUnusedAssignedVars((AbstractLogicalOperator) opRef.getValue(), toRemove, toKeep, true, context);
+        Iterator<LogicalVariable> iterator = toRemove.iterator();
+        while (iterator.hasNext()) {
+            LogicalVariable v = iterator.next();
+            if (toKeep.contains(v)) {
+                iterator.remove();
+            }
+        }
         boolean smthToRemove = !toRemove.isEmpty();
         if (smthToRemove) {
             removeUnusedAssigns(opRef, toRemove, context);
@@ -102,7 +110,7 @@ public class RemoveUnusedAssignAndAggregateRule implements IAlgebraicRewriteRule
                         rootsToBeRemoved.add(r);
                     }
                 }
-                // Makes sure the operator should have at least ONE nested plan even it is empty 
+                // Makes sure the operator should have at least ONE nested plan even it is empty
                 // (because a lot of places uses this assumption,  TODO(yingyib): clean them up).
                 if (nestedPlan.getRoots().size() == rootsToBeRemoved.size() && opWithNest.getNestedPlans().size() > 1) {
                     nestedPlan.getRoots().removeAll(rootsToBeRemoved);
@@ -184,19 +192,19 @@ public class RemoveUnusedAssignAndAggregateRule implements IAlgebraicRewriteRule
         return changed;
     }
 
-    private void collectUnusedAssignedVars(AbstractLogicalOperator op, Set<LogicalVariable> toRemove, boolean first,
-            IOptimizationContext context) throws AlgebricksException {
+    private void collectUnusedAssignedVars(AbstractLogicalOperator op, Set<LogicalVariable> toRemove,
+            Set<LogicalVariable> toKeep, boolean first, IOptimizationContext context) throws AlgebricksException {
         if (!first) {
             context.addToDontApplySet(this, op);
         }
         for (Mutable<ILogicalOperator> c : op.getInputs()) {
-            collectUnusedAssignedVars((AbstractLogicalOperator) c.getValue(), toRemove, false, context);
+            collectUnusedAssignedVars((AbstractLogicalOperator) c.getValue(), toRemove, toKeep, false, context);
         }
         if (op.hasNestedPlans()) {
             AbstractOperatorWithNestedPlans opWithNested = (AbstractOperatorWithNestedPlans) op;
             for (ILogicalPlan plan : opWithNested.getNestedPlans()) {
                 for (Mutable<ILogicalOperator> r : plan.getRoots()) {
-                    collectUnusedAssignedVars((AbstractLogicalOperator) r.getValue(), toRemove, false, context);
+                    collectUnusedAssignedVars((AbstractLogicalOperator) r.getValue(), toRemove, toKeep, false, context);
                 }
             }
         }
@@ -230,10 +238,12 @@ public class RemoveUnusedAssignAndAggregateRule implements IAlgebraicRewriteRule
                 break;
             }
         }
+
         if (removeUsedVars) {
             List<LogicalVariable> used = new LinkedList<LogicalVariable>();
             VariableUtilities.getUsedVariables(op, used);
             toRemove.removeAll(used);
+            toKeep.addAll(used);
         }
     }
 

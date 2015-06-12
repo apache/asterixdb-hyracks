@@ -38,11 +38,12 @@ public abstract class LSMIndexSearchCursor implements ITreeIndexCursor {
     protected PriorityQueue<PriorityQueueElement> outputPriorityQueue;
     protected PriorityQueueComparator pqCmp;
     protected MultiComparator cmp;
-    protected boolean needPush;
+    protected boolean needPushElementIntoQueue;
     protected boolean includeMutableComponent;
     protected ILSMHarness lsmHarness;
     protected final ILSMIndexOperationContext opCtx;
     protected final boolean returnDeletedTuples;
+    protected final boolean addTheResultOfProceed = false;
 
     protected List<ILSMComponent> operationalComponents;
 
@@ -50,7 +51,7 @@ public abstract class LSMIndexSearchCursor implements ITreeIndexCursor {
         this.opCtx = opCtx;
         this.returnDeletedTuples = returnDeletedTuples;
         outputElement = null;
-        needPush = false;
+        needPushElementIntoQueue = false;
     }
 
     public ILSMIndexOperationContext getOpCtx() {
@@ -61,7 +62,7 @@ public abstract class LSMIndexSearchCursor implements ITreeIndexCursor {
         int pqInitSize = (rangeCursors.length > 0) ? rangeCursors.length : 1;
         outputPriorityQueue = new PriorityQueue<PriorityQueueElement>(pqInitSize, pqCmp);
         for (int i = 0; i < rangeCursors.length; i++) {
-            pushIntoPriorityQueue(new PriorityQueueElement(i));
+            pushIntoQueueFromCursorAndReplaceThisElement(new PriorityQueueElement(i));
         }
     }
 
@@ -72,7 +73,7 @@ public abstract class LSMIndexSearchCursor implements ITreeIndexCursor {
     @Override
     public void reset() throws HyracksDataException, IndexException {
         outputElement = null;
-        needPush = false;
+        needPushElementIntoQueue = false;
 
         try {
             if (outputPriorityQueue != null) {
@@ -101,7 +102,7 @@ public abstract class LSMIndexSearchCursor implements ITreeIndexCursor {
     @Override
     public void next() throws HyracksDataException {
         outputElement = outputPriorityQueue.poll();
-        needPush = true;
+        needPushElementIntoQueue = true;
     }
 
     @Override
@@ -140,7 +141,14 @@ public abstract class LSMIndexSearchCursor implements ITreeIndexCursor {
         return outputElement.getTuple();
     }
 
-    protected boolean pushIntoPriorityQueue(PriorityQueueElement e) throws HyracksDataException, IndexException {
+    /**
+     * Insert a new element from a cursor that is indicated by a PriorityQueueElement
+     * @param e
+     * @return
+     * @throws HyracksDataException
+     * @throws IndexException
+     */
+    protected boolean pushIntoQueueFromCursorAndReplaceThisElement(PriorityQueueElement e) throws HyracksDataException, IndexException {
         int cursorIndex = e.getCursorIndex();
         if (rangeCursors[cursorIndex].hasNext()) {
             rangeCursors[cursorIndex].next();
@@ -157,7 +165,7 @@ public abstract class LSMIndexSearchCursor implements ITreeIndexCursor {
     }
 
     protected void checkPriorityQueue() throws HyracksDataException, IndexException {
-        while (!outputPriorityQueue.isEmpty() || needPush == true) {
+        while (!outputPriorityQueue.isEmpty() || needPushElementIntoQueue == true) {
             if (!outputPriorityQueue.isEmpty()) {
                 PriorityQueueElement checkElement = outputPriorityQueue.peek();
                 // If there is no previous tuple or the previous tuple can be ignored
@@ -167,7 +175,7 @@ public abstract class LSMIndexSearchCursor implements ITreeIndexCursor {
                         // We cannot push immediately because the tuple may be
                         // modified if hasNext() is called
                         outputElement = outputPriorityQueue.poll();
-                        needPush = true;
+                        needPushElementIntoQueue = true;
                     } else {
                         break;
                     }
@@ -181,21 +189,22 @@ public abstract class LSMIndexSearchCursor implements ITreeIndexCursor {
 
                         // the head element of PQ is useless now
                         PriorityQueueElement e = outputPriorityQueue.poll();
-                        pushIntoPriorityQueue(e);
+                        pushIntoQueueFromCursorAndReplaceThisElement(e);
                     } else {
                         // If the previous tuple and the head tuple are different
                         // the info of previous tuple is useless
-                        if (needPush == true) {
-                            pushIntoPriorityQueue(outputElement);
-                            needPush = false;
+                        if (needPushElementIntoQueue == true) {
+                            pushIntoQueueFromCursorAndReplaceThisElement(outputElement);
+                            needPushElementIntoQueue = false;
                         }
                         outputElement = null;
                     }
                 }
             } else {
                 // the priority queue is empty and needPush
-                pushIntoPriorityQueue(outputElement);
-                needPush = false;
+            	// Insert one more element into this queue from the cursor indicated by outputElement
+                pushIntoQueueFromCursorAndReplaceThisElement(outputElement);
+                needPushElementIntoQueue = false;
                 outputElement = null;
             }
         }

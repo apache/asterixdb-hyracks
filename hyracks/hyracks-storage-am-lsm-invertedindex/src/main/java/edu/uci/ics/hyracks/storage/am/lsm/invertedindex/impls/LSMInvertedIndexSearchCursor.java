@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,9 +15,15 @@
 package edu.uci.ics.hyracks.storage.am.lsm.invertedindex.impls;
 
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
+import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
+import edu.uci.ics.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
+import edu.uci.ics.hyracks.dataflow.common.comm.io.ArrayTupleReference;
 import edu.uci.ics.hyracks.dataflow.common.data.accessors.ITupleReference;
+import edu.uci.ics.hyracks.dataflow.common.util.TupleUtils;
 import edu.uci.ics.hyracks.storage.am.btree.api.IBTreeLeafFrame;
 import edu.uci.ics.hyracks.storage.am.btree.impls.RangePredicate;
 import edu.uci.ics.hyracks.storage.am.common.api.ICursorInitialState;
@@ -48,6 +54,8 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
     private List<IIndexAccessor> indexAccessors;
     private ISearchPredicate searchPred;
     private ISearchOperationCallback searchCallback;
+    private ITupleReference currentTuple = null;
+    private ArrayTupleReference copyTuple;
 
     // Assuming the cursor for all deleted-keys indexes are of the same type.
     private IIndexCursor[] deletedKeysBTreeCursors;
@@ -56,6 +64,29 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
     private ILSMIndexOperationContext opCtx;
 
     private List<ILSMComponent> operationalComponents;
+
+    private boolean useOperationCallbackProceedReturnResult;
+    private RecordDescriptor recordDescForProceedReturnResult;
+    private byte[] valuesForOperationCallbackProceedReturnResult;
+    private boolean resultOfSearchCallBackProceed = false;
+    private ArrayTupleBuilder tupleBuilderForProceedResult = null;
+
+    // For the experiment
+    protected int proceedFailCount = 0;
+    protected int proceedSuccessCount = 0;
+    private static final Logger LOGGER = Logger.getLogger(LSMInvertedIndexSearchCursor.class.getName());
+    private static final Level LVL = Level.WARNING;
+
+    public LSMInvertedIndexSearchCursor() {
+        this(false, null, null);
+    }
+
+    public LSMInvertedIndexSearchCursor(boolean useOperationCallbackProceedReturnResult,
+            RecordDescriptor recordDescForProceedReturnResult, byte[] valuesForOperationCallbackProceedReturnResult) {
+        this.useOperationCallbackProceedReturnResult = useOperationCallbackProceedReturnResult;
+        this.recordDescForProceedReturnResult = recordDescForProceedReturnResult;
+        this.valuesForOperationCallbackProceedReturnResult = valuesForOperationCallbackProceedReturnResult;
+    }
 
     @Override
     public void open(ICursorInitialState initialState, ISearchPredicate searchPred) throws HyracksDataException {
@@ -86,6 +117,11 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
 
         MultiComparator keyCmp = lsmInitState.getKeyComparator();
         keySearchPred = new RangePredicate(null, null, true, true, keyCmp, keyCmp);
+
+        if (useOperationCallbackProceedReturnResult) {
+            tupleBuilderForProceedResult = new ArrayTupleBuilder(recordDescForProceedReturnResult.getFieldCount());
+            this.copyTuple = new ArrayTupleReference();
+        }
     }
 
     protected boolean isDeleted(ITupleReference key) throws HyracksDataException, IndexException {
@@ -111,9 +147,40 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
     private boolean nextValidTuple() throws HyracksDataException, IndexException {
         while (currentCursor.hasNext()) {
             currentCursor.next();
-            if (!isDeleted(currentCursor.getTuple())) {
+            currentTuple = currentCursor.getTuple();
+            resultOfSearchCallBackProceed = searchCallback.proceed(currentTuple);
+
+            if (!isDeleted(currentTuple)) {
                 tupleConsumed = false;
+
+                //  If useProceed is set to true (e.g., in case of an index-only plan)
+                //  and searchCallback.proceed() fail: will add zero - default value
+                //                            success: will add one - default value
+                if (useOperationCallbackProceedReturnResult) {
+                    tupleBuilderForProceedResult.reset();
+                    TupleUtils.copyTuple(tupleBuilderForProceedResult, currentCursor.getTuple(), currentCursor
+                            .getTuple().getFieldCount());
+
+                    if (!resultOfSearchCallBackProceed) {
+                        // fail case - add the value that indicates fail.
+                        tupleBuilderForProceedResult.addField(valuesForOperationCallbackProceedReturnResult, 0, 5);
+
+                        // For the experiment
+                        proceedFailCount += 1;
+                    } else {
+                        // success case - add the value that indicates success.
+                        tupleBuilderForProceedResult.addField(valuesForOperationCallbackProceedReturnResult, 5, 5);
+
+                        // For the experiment
+                        proceedSuccessCount += 1;
+                    }
+                    copyTuple.reset(tupleBuilderForProceedResult.getFieldEndOffsets(),
+                            tupleBuilderForProceedResult.getByteArray());
+                }
+
                 return true;
+            } else if (resultOfSearchCallBackProceed) {
+                searchCallback.cancelProceed(currentTuple);
             }
         }
         return false;
@@ -158,14 +225,19 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
         tupleConsumed = true;
         // We assume that the underlying cursors materialize their results such that
         // there is no need to reposition the result cursor after reconciliation.
-        if (!searchCallback.proceed(currentCursor.getTuple())) {
-            searchCallback.reconcile(currentCursor.getTuple());
-        }
+        //        if (!searchCallback.proceed(currentCursor.getTuple())) {
+        //            searchCallback.reconcile(currentCursor.getTuple());
+        //        }
     }
 
     @Override
     public void close() throws HyracksDataException {
         reset();
+        // For the experiment
+        if (useOperationCallbackProceedReturnResult) {
+            LOGGER.log(LVL, "***** [Index-only experiment] INVERTED-INDEX-SEARCH tryLock count\tS:\t"
+                    + proceedSuccessCount + "\tF:\t" + proceedFailCount);
+        }
     }
 
     @Override
@@ -181,10 +253,17 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
                 harness.endSearch(opCtx);
             }
         }
+        // For the experiment
+        proceedFailCount = 0;
+        proceedSuccessCount = 0;
     }
 
     @Override
     public ITupleReference getTuple() {
-        return currentCursor.getTuple();
+        if (!useOperationCallbackProceedReturnResult) {
+            return currentCursor.getTuple();
+        } else {
+            return copyTuple;
+        }
     }
 }

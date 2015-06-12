@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Set;
 
 import edu.uci.ics.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
 import edu.uci.ics.hyracks.api.io.FileReference;
 import edu.uci.ics.hyracks.data.std.primitive.IntegerPointable;
@@ -757,6 +758,17 @@ public class LSMBTree extends AbstractLSMIndex implements ITreeIndex {
         @Override
         public IIndexCursor createSearchCursor(boolean exclusive) {
             return new LSMBTreeSearchCursor(ctx);
+        }
+
+        @Override
+        public IIndexCursor createSearchCursor(boolean exclusive, boolean useOperationCallbackProceedReturnResult,
+                RecordDescriptor rDesc, byte[] valuesForOperationCallbackProceedReturnResult) {
+            // This method is only required for the LSM based indexes
+            LSMBTreeOpContext concreteCtx = (LSMBTreeOpContext) ctx;
+            concreteCtx.setUseOperationCallbackProceedReturnResult(useOperationCallbackProceedReturnResult);
+            concreteCtx.setRecordDescForProceedReturnResult(rDesc);
+            concreteCtx.setValuesForProceedReturnResult(valuesForOperationCallbackProceedReturnResult);
+            return new LSMBTreeSearchCursor(concreteCtx);
         }
 
         public MultiComparator getMultiComparator() {

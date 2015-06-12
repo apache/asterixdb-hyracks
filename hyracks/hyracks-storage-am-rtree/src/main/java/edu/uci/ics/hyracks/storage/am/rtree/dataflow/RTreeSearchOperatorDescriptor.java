@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -39,6 +39,8 @@ public class RTreeSearchOperatorDescriptor extends AbstractTreeIndexOperatorDesc
     protected int[] keyFields; // fields in input tuple to be used as keys
     protected final int[] minFilterFieldIndexes;
     protected final int[] maxFilterFieldIndexes;
+    protected boolean useOpercationCallbackProceedReturnResult;
+    protected byte[] valuesForUseOperationCallbackProceedReturnResult;
 
     public RTreeSearchOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor recDesc,
             IStorageManagerInterface storageManager, IIndexLifecycleManagerProvider lifecycleManagerProvider,
@@ -47,6 +49,19 @@ public class RTreeSearchOperatorDescriptor extends AbstractTreeIndexOperatorDesc
             IIndexDataflowHelperFactory dataflowHelperFactory, boolean retainInput, boolean retainNull,
             INullWriterFactory nullWriterFactory, ISearchOperationCallbackFactory searchOpCallbackFactory,
             int[] minFilterFieldIndexes, int[] maxFilterFieldIndexes) {
+        this(spec, recDesc, storageManager, lifecycleManagerProvider, fileSplitProvider, typeTraits,
+                comparatorFactories, keyFields, dataflowHelperFactory, retainInput, retainNull, nullWriterFactory,
+                searchOpCallbackFactory, minFilterFieldIndexes, maxFilterFieldIndexes, false, null);
+    }
+
+    public RTreeSearchOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor recDesc,
+            IStorageManagerInterface storageManager, IIndexLifecycleManagerProvider lifecycleManagerProvider,
+            IFileSplitProvider fileSplitProvider, ITypeTraits[] typeTraits,
+            IBinaryComparatorFactory[] comparatorFactories, int[] keyFields,
+            IIndexDataflowHelperFactory dataflowHelperFactory, boolean retainInput, boolean retainNull,
+            INullWriterFactory nullWriterFactory, ISearchOperationCallbackFactory searchOpCallbackFactory,
+            int[] minFilterFieldIndexes, int[] maxFilterFieldIndexes, boolean useOpercationCallbackProceedReturnResult,
+            byte[] valuesForUseOperationCallbackProceedReturnResult) {
 
         super(spec, 1, 1, recDesc, storageManager, lifecycleManagerProvider, fileSplitProvider, typeTraits,
                 comparatorFactories, null, dataflowHelperFactory, null, retainInput, retainNull, nullWriterFactory,
@@ -55,6 +70,8 @@ public class RTreeSearchOperatorDescriptor extends AbstractTreeIndexOperatorDesc
         this.keyFields = keyFields;
         this.minFilterFieldIndexes = minFilterFieldIndexes;
         this.maxFilterFieldIndexes = maxFilterFieldIndexes;
+        this.useOpercationCallbackProceedReturnResult = useOpercationCallbackProceedReturnResult;
+        this.valuesForUseOperationCallbackProceedReturnResult = valuesForUseOperationCallbackProceedReturnResult;
     }
 
     @Override
@@ -62,5 +79,15 @@ public class RTreeSearchOperatorDescriptor extends AbstractTreeIndexOperatorDesc
             IRecordDescriptorProvider recordDescProvider, int partition, int nPartitions) {
         return new RTreeSearchOperatorNodePushable(this, ctx, partition, recordDescProvider, keyFields,
                 minFilterFieldIndexes, maxFilterFieldIndexes);
+    }
+
+    @Override
+    public boolean getUseOpercationCallbackProceedReturnResult() {
+        return useOpercationCallbackProceedReturnResult;
+    }
+
+    @Override
+    public byte[] getValuesForOpercationCallbackProceedReturnResult() {
+        return valuesForUseOperationCallbackProceedReturnResult;
     }
 }

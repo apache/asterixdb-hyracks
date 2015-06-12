@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -75,7 +75,13 @@ public class LSMBTreePointSearchCursor implements ITreeIndexCursor {
                 if (reconciled || searchCallback.proceed(predicate.getLowKey())) {
                     // if proceed is successful, then there's no need for doing the "unlatch dance"
                     if (((ILSMTreeTupleReference) rangeCursors[i].getTuple()).isAntimatter()) {
-                        searchCallback.cancel(predicate.getLowKey());
+                        if (reconciled) {
+                            // Cancel the action of the reconcile()
+                            searchCallback.cancelReconcile(predicate.getLowKey());
+                        } else {
+                            // Cancel the action of the proceed()
+                            searchCallback.cancelProceed(predicate.getLowKey());
+                        }
                         rangeCursors[i].close();
                         return false;
                     } else {
@@ -92,19 +98,24 @@ public class LSMBTreePointSearchCursor implements ITreeIndexCursor {
 
                     // retraverse
                     btreeAccessors[0].search(rangeCursors[i], predicate);
-                    searchCallback.complete(predicate.getLowKey());
+                    /**
+                     * wrong usage ************
+                     * searchCallback.complete(predicate.getLowKey());
+                     ***************************/
                     if (rangeCursors[i].hasNext()) {
                         rangeCursors[i].next();
                         if (((ILSMTreeTupleReference) rangeCursors[i].getTuple()).isAntimatter()) {
-                            searchCallback.cancel(predicate.getLowKey());
+                            searchCallback.cancelReconcile(predicate.getLowKey());
                             rangeCursors[i].close();
                             return false;
                         } else {
                             frameTuple = rangeCursors[i].getTuple();
                             foundTuple = true;
+                            searchCallback.complete(predicate.getLowKey());
                             return true;
                         }
                     } else {
+                        searchCallback.cancelReconcile(predicate.getLowKey());
                         rangeCursors[i].close();
                     }
                 } else {

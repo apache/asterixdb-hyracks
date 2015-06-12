@@ -40,6 +40,7 @@ import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.RunningAggr
 import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.ScriptOperator;
 import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.SelectOperator;
 import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.SinkOperator;
+import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.SplitOperator;
 import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.SubplanOperator;
 import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.TokenizeOperator;
 import edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.UnionAllOperator;
@@ -87,6 +88,8 @@ public interface ILogicalOperatorVisitor<R, T> {
     public R visitSubplanOperator(SubplanOperator op, T arg) throws AlgebricksException;
 
     public R visitSinkOperator(SinkOperator op, T arg) throws AlgebricksException;
+
+    public R visitSplitOperator(SplitOperator op, T arg) throws AlgebricksException;
 
     public R visitUnionOperator(UnionAllOperator op, T arg) throws AlgebricksException;
 

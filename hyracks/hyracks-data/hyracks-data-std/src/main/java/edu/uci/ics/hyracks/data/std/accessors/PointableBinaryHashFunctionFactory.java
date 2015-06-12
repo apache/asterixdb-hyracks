@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,6 +17,7 @@ package edu.uci.ics.hyracks.data.std.accessors;
 import edu.uci.ics.hyracks.api.dataflow.value.IBinaryHashFunction;
 import edu.uci.ics.hyracks.api.dataflow.value.IBinaryHashFunctionFactory;
 import edu.uci.ics.hyracks.data.std.api.IHashable;
+import edu.uci.ics.hyracks.data.std.api.IHashableForStringWithoutLengthByte;
 import edu.uci.ics.hyracks.data.std.api.IPointable;
 import edu.uci.ics.hyracks.data.std.api.IPointableFactory;
 
@@ -41,6 +42,19 @@ public class PointableBinaryHashFunctionFactory implements IBinaryHashFunctionFa
             public int hash(byte[] bytes, int offset, int length) {
                 p.set(bytes, offset, length);
                 return ((IHashable) p).hash();
+            }
+        };
+    }
+
+    // If a string doesn't have the length [2 byte] in the beginning and
+    // the length is passed by the parameter
+    public IBinaryHashFunction createBinaryHashWithoutLengthByteFunction() {
+        final IPointable p = pf.createPointable();
+        return new IBinaryHashFunction() {
+            @Override
+            public int hash(byte[] bytes, int offset, int length) {
+                p.set(bytes, offset, length);
+                return ((IHashableForStringWithoutLengthByte) p).hash(length);
             }
         };
     }

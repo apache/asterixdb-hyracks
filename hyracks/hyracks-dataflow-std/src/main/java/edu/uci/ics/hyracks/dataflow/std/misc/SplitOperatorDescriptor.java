@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,6 +16,8 @@ package edu.uci.ics.hyracks.dataflow.std.misc;
 
 import java.nio.ByteBuffer;
 
+import edu.uci.ics.hyracks.algebricks.data.IBinaryIntegerInspector;
+import edu.uci.ics.hyracks.algebricks.data.IBinaryIntegerInspectorFactory;
 import edu.uci.ics.hyracks.api.comm.IFrameWriter;
 import edu.uci.ics.hyracks.api.comm.VSizeFrame;
 import edu.uci.ics.hyracks.api.context.IHyracksTaskContext;
@@ -27,6 +29,13 @@ import edu.uci.ics.hyracks.api.dataflow.value.IRecordDescriptorProvider;
 import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
 import edu.uci.ics.hyracks.api.job.IOperatorDescriptorRegistry;
+import edu.uci.ics.hyracks.api.util.ExecutionTimeProfiler;
+import edu.uci.ics.hyracks.api.util.ExecutionTimeStopWatch;
+import edu.uci.ics.hyracks.api.util.OperatorExecutionTimeProfiler;
+import edu.uci.ics.hyracks.data.std.util.GrowableArray;
+import edu.uci.ics.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
+import edu.uci.ics.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
+import edu.uci.ics.hyracks.dataflow.common.comm.io.FrameTupleAppender;
 import edu.uci.ics.hyracks.dataflow.common.comm.util.FrameUtils;
 import edu.uci.ics.hyracks.dataflow.std.base.AbstractActivityNode;
 import edu.uci.ics.hyracks.dataflow.std.base.AbstractOperatorDescriptor;
@@ -43,13 +52,17 @@ public class SplitOperatorDescriptor extends AbstractOperatorDescriptor {
     private boolean requiresMaterialization;
     private int numberOfNonMaterializedOutputs = 0;
     private int numberOfActiveMaterializeReaders = 0;
+    private IBinaryIntegerInspectorFactory intInsepctorFactory;
+    private int conditionalVarFieldPos = 0;
 
-    public SplitOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor rDesc, int outputArity) {
-        this(spec, rDesc, outputArity, new boolean[outputArity]);
+    public SplitOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor rDesc, int outputArity,
+            IBinaryIntegerInspectorFactory intInsepctorFactory, int conditionalVarFieldPos) {
+        this(spec, rDesc, outputArity, new boolean[outputArity], intInsepctorFactory, conditionalVarFieldPos);
     }
 
     public SplitOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor rDesc, int outputArity,
-            boolean[] outputMaterializationFlags) {
+            boolean[] outputMaterializationFlags, IBinaryIntegerInspectorFactory intInsepctorFactory,
+            int conditionalVarFieldPos) {
         super(spec, 1, outputArity);
         for (int i = 0; i < outputArity; i++) {
             recordDescriptors[i] = rDesc;
@@ -62,7 +75,8 @@ public class SplitOperatorDescriptor extends AbstractOperatorDescriptor {
                 break;
             }
         }
-
+        this.conditionalVarFieldPos = conditionalVarFieldPos;
+        this.intInsepctorFactory = intInsepctorFactory;
     }
 
     @Override
@@ -109,26 +123,92 @@ public class SplitOperatorDescriptor extends AbstractOperatorDescriptor {
             return new AbstractUnaryInputOperatorNodePushable() {
                 private MaterializerTaskState state;
                 private final IFrameWriter[] writers = new IFrameWriter[numberOfNonMaterializedOutputs];
+                private FrameTupleAccessor accessor;
+                private ArrayTupleBuilder[] builders;
+                private GrowableArray[] builderDatas;
+                private FrameTupleAppender[] appenders;
+                IBinaryIntegerInspector intInsepctor = intInsepctorFactory.createBinaryIntegerInspector(ctx);
+
+                // Added to measure the execution time when the profiler setting is enabled
+                private ExecutionTimeStopWatch profilerSW;
+                private String nodeJobSignature;
+                private String taskId;
 
                 @Override
                 public void open() throws HyracksDataException {
+                    // Added to measure the execution time when the profiler setting is enabled
+                    if (ExecutionTimeProfiler.PROFILE_MODE) {
+                        profilerSW = new ExecutionTimeStopWatch();
+                        profilerSW.start();
+
+                        // The key of this job: nodeId + JobId + Joblet hash code
+                        nodeJobSignature = ctx.getJobletContext().getApplicationContext().getNodeId() + "_"
+                                + ctx.getJobletContext().getJobId() + "_" + ctx.getJobletContext().hashCode();
+
+                        // taskId: partition + taskId + started time
+                        taskId = ctx.getTaskAttemptId() + this.toString() + profilerSW.getStartTimeStamp();
+
+                        // Initialize the counter for this runtime instance
+                        OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId,
+                                ExecutionTimeProfiler.INIT, false);
+                        System.out.println("SPLIT open() " + nodeJobSignature + " " + taskId);
+                    }
+
                     if (requiresMaterialization) {
                         state = new MaterializerTaskState(ctx.getJobletContext().getJobId(), new TaskId(
                                 getActivityId(), partition));
                         state.open(ctx);
                     }
+                    accessor = new FrameTupleAccessor(recordDescriptors[0]);
+                    builders = new ArrayTupleBuilder[numberOfNonMaterializedOutputs];
+                    builderDatas = new GrowableArray[numberOfNonMaterializedOutputs];
+                    appenders = new FrameTupleAppender[numberOfNonMaterializedOutputs];
+
                     for (int i = 0; i < numberOfNonMaterializedOutputs; i++) {
+                        builders[i] = new ArrayTupleBuilder(recordDescriptors[0].getFieldCount());
+                        builderDatas[i] = builders[i].getFieldData();
+                        appenders[i] = new FrameTupleAppender(new VSizeFrame(ctx), true);
                         writers[i].open();
                     }
                 }
 
                 @Override
                 public void nextFrame(ByteBuffer bufferAccessor) throws HyracksDataException {
+                    // Added to measure the execution time when the profiler setting is enabled
+                    if (ExecutionTimeProfiler.PROFILE_MODE) {
+                        profilerSW.resume();
+                    }
+
                     if (requiresMaterialization) {
                         state.appendFrame(bufferAccessor);
                     }
-                    for (int i = 0; i < numberOfNonMaterializedOutputs; i++) {
-                        FrameUtils.flushFrame(bufferAccessor, writers[i]);
+
+                    accessor.reset(bufferAccessor);
+                    int tupleCount = accessor.getTupleCount();
+                    int resultValue = 0;
+
+                    if (!ExecutionTimeProfiler.PROFILE_MODE) {
+                        for (int i = 0; i < tupleCount; i++) {
+                            resultValue = intInsepctor.getIntegerValue(
+                                    accessor.getBuffer().array(),
+                                    accessor.getTupleStartOffset(i) + accessor.getFieldSlotsLength()
+                                            + accessor.getFieldStartOffset(i, conditionalVarFieldPos),
+                                    accessor.getFieldLength(i, conditionalVarFieldPos));
+
+                            FrameUtils.appendToWriter(writers[resultValue], appenders[resultValue], accessor, i);
+                        }
+                    } else {
+                        // Added to measure the execution time when the profiler setting is enabled
+                        for (int i = 0; i < tupleCount; i++) {
+                            resultValue = intInsepctor.getIntegerValue(
+                                    accessor.getBuffer().array(),
+                                    accessor.getTupleStartOffset(i) + accessor.getFieldSlotsLength()
+                                            + accessor.getFieldStartOffset(i, conditionalVarFieldPos),
+                                    accessor.getFieldLength(i, conditionalVarFieldPos));
+
+                            FrameUtils.appendToWriter(writers[resultValue], appenders[resultValue], accessor, i,
+                                    profilerSW);
+                        }
                     }
                 }
 
@@ -139,8 +219,19 @@ public class SplitOperatorDescriptor extends AbstractOperatorDescriptor {
                         ctx.setStateObject(state);
                     }
                     for (int i = 0; i < numberOfNonMaterializedOutputs; i++) {
+                        appenders[i].flush(writers[i], true);
                         writers[i].close();
                     }
+
+                    // Added to measure the execution time when the profiler setting is enabled
+                    if (ExecutionTimeProfiler.PROFILE_MODE) {
+                        profilerSW.finish();
+                        OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId,
+                                profilerSW.getMessage("SPLIT\t" + ctx.getTaskAttemptId() + "\t" + this.toString(),
+                                        profilerSW.getStartTimeStamp()), false);
+                        System.out.println("SPLIT close() " + nodeJobSignature + " " + taskId);
+                    }
+
                 }
 
                 @Override

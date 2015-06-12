@@ -23,11 +23,14 @@ import edu.uci.ics.hyracks.api.dataflow.value.INormalizedKeyComputerFactory;
 import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
 import edu.uci.ics.hyracks.api.io.FileReference;
+import edu.uci.ics.hyracks.api.util.ExecutionTimeProfiler;
+import edu.uci.ics.hyracks.api.util.ExecutionTimeStopWatch;
+import edu.uci.ics.hyracks.api.util.OperatorExecutionTimeProfiler;
 import edu.uci.ics.hyracks.dataflow.common.io.RunFileWriter;
 import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.EnumFreeSlotPolicy;
-import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.FrameFreeSlotSmallestFit;
 import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.FrameFreeSlotBiggestFirst;
 import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.FrameFreeSlotLastFit;
+import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.FrameFreeSlotSmallestFit;
 import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.IFrameBufferManager;
 import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.IFrameFreeSlotPolicy;
 import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.VariableFrameMemoryManager;
@@ -38,6 +41,11 @@ public class ExternalSortRunGenerator extends AbstractSortRunGenerator {
     protected final IHyracksTaskContext ctx;
     protected final IFrameSorter frameSorter;
     protected final int maxSortFrames;
+
+    // Added to measure the execution time when the profiler setting is enabled
+    protected ExecutionTimeStopWatch profilerSW;
+    protected String nodeJobSignature;
+    protected String taskId;
 
     public ExternalSortRunGenerator(IHyracksTaskContext ctx, int[] sortFields,
             INormalizedKeyComputerFactory firstKeyNormalizerFactory, IBinaryComparatorFactory[] comparatorFactories,
@@ -73,8 +81,8 @@ public class ExternalSortRunGenerator extends AbstractSortRunGenerator {
                 freeSlotPolicy = new FrameFreeSlotBiggestFirst(maxSortFrames);
                 break;
         }
-        IFrameBufferManager bufferManager = new VariableFrameMemoryManager(
-                new VariableFramePool(ctx, maxSortFrames * ctx.getInitialFrameSize()), freeSlotPolicy);
+        IFrameBufferManager bufferManager = new VariableFrameMemoryManager(new VariableFramePool(ctx, maxSortFrames
+                * ctx.getInitialFrameSize()), freeSlotPolicy);
         if (alg == Algorithm.MERGE_SORT) {
             frameSorter = new FrameSorterMergeSort(ctx, bufferManager, sortFields, firstKeyNormalizerFactory,
                     comparatorFactories, recordDesc, outputLimit);
@@ -85,12 +93,68 @@ public class ExternalSortRunGenerator extends AbstractSortRunGenerator {
     }
 
     @Override
+    public void open() throws HyracksDataException {
+        // Added to measure the execution time when the profiler setting is enabled
+        if (ExecutionTimeProfiler.PROFILE_MODE) {
+            profilerSW = new ExecutionTimeStopWatch();
+            profilerSW.start();
+
+            // The key of this job: nodeId + JobId + Joblet hash code
+            nodeJobSignature = ctx.getJobletContext().getApplicationContext().getNodeId() + "_"
+                    + ctx.getJobletContext().getJobId() + "_" + ctx.getJobletContext().hashCode();
+
+            // taskId: partition + taskId + started time
+            taskId = ctx.getTaskAttemptId() + this.toString() + profilerSW.getStartTimeStamp();
+
+            // Initialize the counter for this runtime instance
+            OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId,
+                    ExecutionTimeProfiler.INIT, false);
+            System.out.println("EXTERNAL_SORT_RUN_GENERATOR open() " + nodeJobSignature + " " + taskId);
+        }
+        runAndMaxSizes.clear();
+    }
+
+    @Override
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
+        // Added to measure the execution time when the profiler setting is enabled
+        if (ExecutionTimeProfiler.PROFILE_MODE) {
+            profilerSW.resume();
+        }
+
         if (!frameSorter.insertFrame(buffer)) {
             flushFramesToRun();
             if (!frameSorter.insertFrame(buffer)) {
                 throw new HyracksDataException("The given frame is too big to insert into the sorting memory.");
             }
+        }
+
+        // Added to measure the execution time when the profiler setting is enabled
+        if (ExecutionTimeProfiler.PROFILE_MODE) {
+            profilerSW.suspend();
+        }
+    }
+
+    @Override
+    public void close() throws HyracksDataException {
+        // Added to measure the execution time when the profiler setting is enabled
+        if (ExecutionTimeProfiler.PROFILE_MODE) {
+            profilerSW.resume();
+        }
+        if (getSorter().hasRemaining()) {
+            if (runAndMaxSizes.size() <= 0) {
+                getSorter().sort();
+            } else {
+                flushFramesToRun();
+            }
+        }
+        // Added to measure the execution time when the profiler setting is enabled
+        if (ExecutionTimeProfiler.PROFILE_MODE) {
+            profilerSW.suspend();
+            profilerSW.finish();
+            OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId, profilerSW
+                    .getMessage("EXTERNAL_SORT_RUN_GENERATOR\t" + ctx.getTaskAttemptId() + "\t" + this.toString(),
+                            profilerSW.getStartTimeStamp()), false);
+            System.out.println("EXTERNAL_SORT_RUN_GENERATOR close() " + nodeJobSignature + " " + taskId);
         }
     }
 
@@ -107,6 +171,31 @@ public class ExternalSortRunGenerator extends AbstractSortRunGenerator {
     @Override
     public ISorter getSorter() {
         return frameSorter;
+    }
+
+    @Override
+    protected void flushFramesToRun() throws HyracksDataException {
+        getSorter().sort();
+        RunFileWriter runWriter = getRunFileWriter();
+        IFrameWriter flushWriter = getFlushableFrameWriter(runWriter);
+        flushWriter.open();
+        int maxFlushedFrameSize;
+        try {
+
+            // Added to measure the execution time when the profiler setting is enabled
+            if (ExecutionTimeProfiler.PROFILE_MODE) {
+                profilerSW.suspend();
+            }
+            maxFlushedFrameSize = getSorter().flush(flushWriter);
+            // Added to measure the execution time when the profiler setting is enabled
+            if (ExecutionTimeProfiler.PROFILE_MODE) {
+                profilerSW.resume();
+            }
+        } finally {
+            flushWriter.close();
+        }
+        runAndMaxSizes.add(new RunAndMaxFrameSizePair(runWriter.createReader(), maxFlushedFrameSize));
+        getSorter().reset();
     }
 
 }

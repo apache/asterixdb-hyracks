@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -78,7 +78,7 @@ public class IntroduceProjectsRule implements IAlgebraicRewriteRule {
         parentsUsedVars.addAll(parentUsedVars);
         parentsUsedVars.addAll(usedVars);
 
-        // Descend into children.        
+        // Descend into children.
         for (int i = 0; i < op.getInputs().size(); i++) {
             Mutable<ILogicalOperator> inputOpRef = op.getInputs().get(i);
             if (introduceProjects(op, i, inputOpRef, parentsUsedVars, context)) {
@@ -115,7 +115,11 @@ public class IntroduceProjectsRule implements IAlgebraicRewriteRule {
                 vars.addAll(projectVars);
                 // Only retain those variables that are live in the i-th input branch.
                 vars.retainAll(liveVars);
-                if (vars.size() != liveVars.size()) {
+                // Not push down Project below SPLIT or REPLICATE since it has two or more parents node
+                // and this rule checks only one path at a time.
+                boolean needToSkip = op.getOperatorTag() == LogicalOperatorTag.SPLIT
+                        || op.getOperatorTag() == LogicalOperatorTag.REPLICATE;
+                if (vars.size() != liveVars.size() && !needToSkip) {
                     ProjectOperator projectOp = new ProjectOperator(vars);
                     projectOp.getInputs().add(new MutableObject<ILogicalOperator>(childOp));
                     op.getInputs().get(i).setValue(projectOp);
@@ -148,7 +152,7 @@ public class IntroduceProjectsRule implements IAlgebraicRewriteRule {
         }
         return modified;
     }
-    
+
     private boolean canEliminateProjectBelowUnion(UnionAllOperator unionOp, ProjectOperator projectOp,
             int unionInputIndex) throws AlgebricksException {
         List<LogicalVariable> orderedLiveVars = new ArrayList<LogicalVariable>();

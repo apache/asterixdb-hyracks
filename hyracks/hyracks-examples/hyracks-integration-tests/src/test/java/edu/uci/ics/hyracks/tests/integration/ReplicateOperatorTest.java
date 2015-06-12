@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -36,11 +36,11 @@ import edu.uci.ics.hyracks.dataflow.std.file.ConstantFileSplitProvider;
 import edu.uci.ics.hyracks.dataflow.std.file.DelimitedDataTupleParserFactory;
 import edu.uci.ics.hyracks.dataflow.std.file.FileScanOperatorDescriptor;
 import edu.uci.ics.hyracks.dataflow.std.file.FileSplit;
-import edu.uci.ics.hyracks.dataflow.std.misc.SplitOperatorDescriptor;
+import edu.uci.ics.hyracks.dataflow.std.misc.ReplicateOperatorDescriptor;
 import edu.uci.ics.hyracks.dataflow.std.result.ResultWriterOperatorDescriptor;
 import edu.uci.ics.hyracks.tests.util.ResultSerializerFactoryProvider;
 
-public class SplitOperatorTest extends AbstractIntegrationTest {
+public class ReplicateOperatorTest extends AbstractIntegrationTest {
 
     public void compareFiles(String fileNameA, String fileNameB) throws IOException {
         BufferedReader fileA = new BufferedReader(new FileReader(fileNameA));
@@ -82,7 +82,7 @@ public class SplitOperatorTest extends AbstractIntegrationTest {
                 inputSplits), stringParser, stringRec);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, scanOp, locations);
 
-        SplitOperatorDescriptor splitOp = new SplitOperatorDescriptor(spec, stringRec, outputArity);
+        ReplicateOperatorDescriptor splitOp = new ReplicateOperatorDescriptor(spec, stringRec, outputArity);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, splitOp, locations);
 
         IOperatorDescriptor outputOp[] = new IOperatorDescriptor[outputFile.length];

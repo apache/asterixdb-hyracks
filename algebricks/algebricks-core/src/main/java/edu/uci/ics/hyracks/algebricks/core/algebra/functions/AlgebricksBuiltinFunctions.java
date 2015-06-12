@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,7 +24,8 @@ public class AlgebricksBuiltinFunctions {
         GE,
         LT,
         GT,
-        NEQ
+        NEQ,
+        CONTAINS
     }
 
     public static final String ALGEBRICKS_NS = "algebricks";
@@ -36,6 +37,7 @@ public class AlgebricksBuiltinFunctions {
     public final static FunctionIdentifier LT = new FunctionIdentifier(ALGEBRICKS_NS, "lt", 2);
     public final static FunctionIdentifier GT = new FunctionIdentifier(ALGEBRICKS_NS, "gt", 2);
     public final static FunctionIdentifier NEQ = new FunctionIdentifier(ALGEBRICKS_NS, "neq", 2);
+    public final static FunctionIdentifier CONTAINS = new FunctionIdentifier(ALGEBRICKS_NS, "contains", 2);
 
     // booleans
     public final static FunctionIdentifier NOT = new FunctionIdentifier(ALGEBRICKS_NS, "not", 1);
@@ -57,6 +59,7 @@ public class AlgebricksBuiltinFunctions {
         comparisonFunctions.put(AlgebricksBuiltinFunctions.LT, ComparisonKind.LT);
         comparisonFunctions.put(AlgebricksBuiltinFunctions.GT, ComparisonKind.GT);
         comparisonFunctions.put(AlgebricksBuiltinFunctions.NEQ, ComparisonKind.NEQ);
+        comparisonFunctions.put(AlgebricksBuiltinFunctions.CONTAINS, ComparisonKind.CONTAINS);
     }
 
     public static ComparisonKind getComparisonType(FunctionIdentifier fi) {

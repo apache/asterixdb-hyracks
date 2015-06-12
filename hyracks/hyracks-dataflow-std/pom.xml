@@ -72,5 +72,10 @@
           <version>0.2.16-SNAPSHOT</version>
           <scope>test</scope>
       </dependency>
+      <dependency>
+      	<groupId>edu.uci.ics.hyracks</groupId>
+      	<artifactId>algebricks-data</artifactId>
+      	<version>0.2.16-SNAPSHOT</version>
+      </dependency>
   </dependencies>
 </project>

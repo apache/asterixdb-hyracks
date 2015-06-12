@@ -31,6 +31,9 @@ import edu.uci.ics.hyracks.api.dataflow.value.INormalizedKeyComputer;
 import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
 import edu.uci.ics.hyracks.api.io.FileReference;
+import edu.uci.ics.hyracks.api.util.ExecutionTimeProfiler;
+import edu.uci.ics.hyracks.api.util.ExecutionTimeStopWatch;
+import edu.uci.ics.hyracks.api.util.OperatorExecutionTimeProfiler;
 import edu.uci.ics.hyracks.dataflow.common.comm.util.FrameUtils;
 import edu.uci.ics.hyracks.dataflow.common.io.RunFileWriter;
 import edu.uci.ics.hyracks.dataflow.std.sort.util.GroupVSizeFrame;
@@ -56,11 +59,16 @@ public class ExternalSortRunMerger {
 
     private static final Logger LOGGER = Logger.getLogger(ExternalSortRunMerger.class.getName());
 
+    // Added to measure the execution time when the profiler setting is enabled
+    protected ExecutionTimeStopWatch profilerSW;
+    protected String nodeJobSignature;
+    protected String taskId;
+
     public ExternalSortRunMerger(IHyracksTaskContext ctx, ISorter sorter, List<RunAndMaxFrameSizePair> runs,
             int[] sortFields, IBinaryComparator[] comparators, INormalizedKeyComputer nmkComputer,
             RecordDescriptor recordDesc, int framesLimit, IFrameWriter writer) {
-        this(ctx, sorter, runs, sortFields, comparators, nmkComputer, recordDesc, framesLimit,
-                Integer.MAX_VALUE, writer);
+        this(ctx, sorter, runs, sortFields, comparators, nmkComputer, recordDesc, framesLimit, Integer.MAX_VALUE,
+                writer);
     }
 
     public ExternalSortRunMerger(IHyracksTaskContext ctx, ISorter sorter, List<RunAndMaxFrameSizePair> runs,
@@ -82,6 +90,26 @@ public class ExternalSortRunMerger {
     }
 
     public void process() throws HyracksDataException {
+        // Added to measure the execution time when the profiler setting is enabled
+        if (ExecutionTimeProfiler.PROFILE_MODE) {
+            profilerSW = new ExecutionTimeStopWatch();
+            profilerSW.start();
+
+            // The key of this job: nodeId + JobId + Joblet hash code
+            nodeJobSignature = ctx.getJobletContext().getApplicationContext().getNodeId() + "_"
+                    + ctx.getJobletContext().getJobId() + "_" + ctx.getJobletContext().hashCode();
+
+            // taskId: partition + taskId + started time
+            taskId = ctx.getTaskAttemptId() + this.toString() + profilerSW.getStartTimeStamp();
+
+            // Initialize the counter for this runtime instance
+            OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId,
+                    ExecutionTimeProfiler.INIT, false);
+            System.out.println("EXTERNAL_SORT_RUN_MERGER open() " + nodeJobSignature + " " + taskId);
+
+            profilerSW.resume();
+        }
+
         IFrameWriter finalWriter = null;
         try {
             if (runs.size() <= 0) {
@@ -89,9 +117,21 @@ public class ExternalSortRunMerger {
                 finalWriter.open();
                 if (sorter != null) {
                     if (sorter.hasRemaining()) {
+                        // Added to measure the execution time when the profiler setting is enabled
+                        if (ExecutionTimeProfiler.PROFILE_MODE) {
+                            profilerSW.suspend();
+                        }
                         sorter.flush(finalWriter);
+                        // Added to measure the execution time when the profiler setting is enabled
+                        if (ExecutionTimeProfiler.PROFILE_MODE) {
+                            profilerSW.resume();
+                        }
                     }
                     sorter.close();
+                    // Added to measure the execution time when the profiler setting is enabled
+                    if (ExecutionTimeProfiler.PROFILE_MODE) {
+                        profilerSW.suspend();
+                    }
                 }
             } else {
                 /** recycle sort buffer */
@@ -114,8 +154,7 @@ public class ExternalSortRunMerger {
                 while (true) {
 
                     int unUsed = selectPartialRuns(maxMergeWidth * ctx.getInitialFrameSize(), runs, partialRuns,
-                            currentGenerationRunAvailable,
-                            stop);
+                            currentGenerationRunAvailable, stop);
                     prepareFrames(unUsed, inFrames, partialRuns);
 
                     if (!currentGenerationRunAvailable.isEmpty() || stop < runs.size()) {
@@ -161,12 +200,25 @@ public class ExternalSortRunMerger {
                         break;
                     }
                 }
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.suspend();
+                }
+
             }
         } catch (Exception e) {
             finalWriter.fail();
             throw new HyracksDataException(e);
         } finally {
             finalWriter.close();
+            // Added to measure the execution time when the profiler setting is enabled
+            if (ExecutionTimeProfiler.PROFILE_MODE) {
+                profilerSW.finish();
+                OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId, profilerSW
+                        .getMessage("EXTERNAL_SORT_RUN_MERGER\t" + ctx.getTaskAttemptId() + "\t" + this.toString(),
+                                profilerSW.getStartTimeStamp()), false);
+                System.out.println("EXTERNAL_SORT_RUN_MERGER close() " + nodeJobSignature + " " + taskId);
+            }
         }
     }
 
@@ -192,8 +244,7 @@ public class ExternalSortRunMerger {
         return budget;
     }
 
-    private void prepareFrames(int extraFreeMem, List<GroupVSizeFrame> inFrames,
-            List<RunAndMaxFrameSizePair> patialRuns)
+    private void prepareFrames(int extraFreeMem, List<GroupVSizeFrame> inFrames, List<RunAndMaxFrameSizePair> patialRuns)
             throws HyracksDataException {
         if (extraFreeMem > 0 && patialRuns.size() > 1) {
             int extraFrames = extraFreeMem / ctx.getInitialFrameSize();
@@ -242,20 +293,27 @@ public class ExternalSortRunMerger {
         return sortFields;
     }
 
-    private int merge(IFrameWriter writer, List<RunAndMaxFrameSizePair> partialRuns)
-            throws HyracksDataException {
+    private int merge(IFrameWriter writer, List<RunAndMaxFrameSizePair> partialRuns) throws HyracksDataException {
         tempRuns.clear();
         for (int i = 0; i < partialRuns.size(); i++) {
             tempRuns.add(partialRuns.get(i).run);
         }
-        RunMergingFrameReader merger = new RunMergingFrameReader(ctx, tempRuns, inFrames, getSortFields(),
-                comparators, nmkComputer, recordDesc, topK);
+        RunMergingFrameReader merger = new RunMergingFrameReader(ctx, tempRuns, inFrames, getSortFields(), comparators,
+                nmkComputer, recordDesc, topK);
         int maxFrameSize = 0;
         int io = 0;
         merger.open();
         try {
             while (merger.nextFrame(outputFrame)) {
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.suspend();
+                }
                 FrameUtils.flushFrame(outputFrame.getBuffer(), writer);
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.resume();
+                }
                 maxFrameSize = maxFrameSize < outputFrame.getFrameSize() ? outputFrame.getFrameSize() : maxFrameSize;
                 io++;
             }
