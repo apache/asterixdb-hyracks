@@ -55,4 +55,7 @@ public interface IIndexOperatorDescriptor extends IActivity {
 
     public byte[] getValuesForOpercationCallbackProceedReturnResult();
 
+    // During the index-search, only fetch the given number of results.
+    public long getLimitNumberOfResult();
+
 }

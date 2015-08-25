@@ -18,17 +18,17 @@ package org.apache.hyracks.storage.am.lsm.rtree.impls;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
-import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
-import edu.uci.ics.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
-import edu.uci.ics.hyracks.dataflow.common.comm.io.ArrayTupleReference;
-import edu.uci.ics.hyracks.dataflow.common.data.accessors.ITupleReference;
-import edu.uci.ics.hyracks.dataflow.common.util.TupleUtils;
-import edu.uci.ics.hyracks.storage.am.common.api.ICursorInitialState;
-import edu.uci.ics.hyracks.storage.am.common.api.ISearchPredicate;
-import edu.uci.ics.hyracks.storage.am.common.api.IndexException;
-import edu.uci.ics.hyracks.storage.am.common.tuples.PermutingTupleReference;
-import edu.uci.ics.hyracks.storage.am.lsm.common.api.ILSMIndexOperationContext;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
+import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleReference;
+import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
+import org.apache.hyracks.dataflow.common.util.TupleUtils;
+import org.apache.hyracks.storage.am.common.api.ICursorInitialState;
+import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
+import org.apache.hyracks.storage.am.common.api.IndexException;
+import org.apache.hyracks.storage.am.common.tuples.PermutingTupleReference;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexOperationContext;
 
 public class LSMRTreeSearchCursor extends LSMRTreeAbstractCursor {
 
@@ -38,6 +38,7 @@ public class LSMRTreeSearchCursor extends LSMRTreeAbstractCursor {
     private RecordDescriptor rDescForProceedReturnResult = null;
     private byte[] valuesForOperationCallbackProceedReturnResult;
     private boolean resultOfsearchCallBackProceed = false;
+    private int numberOfFieldFromIndex = 0;
     private ArrayTupleBuilder tupleBuilderForProceedResult;
     //    private byte[] returnValuesArrayForProccedResult = new byte[10];
     private ArrayTupleReference copyTuple = null;
@@ -160,8 +161,7 @@ public class LSMRTreeSearchCursor extends LSMRTreeAbstractCursor {
         //                            success: will add one - default value
         if (useProceedResult) {
             tupleBuilderForProceedResult.reset();
-            TupleUtils.copyTuple(tupleBuilderForProceedResult, frameTuple,
-                    rDescForProceedReturnResult.getFieldCount() - 1);
+            TupleUtils.copyTuple(tupleBuilderForProceedResult, frameTuple, numberOfFieldFromIndex);
 
             if (!resultOfsearchCallBackProceed) {
                 // fail case - add the value that indicates fail.
@@ -188,6 +188,9 @@ public class LSMRTreeSearchCursor extends LSMRTreeAbstractCursor {
         super.open(initialState, searchPred);
         searchNextCursor();
 
+        numberOfFieldFromIndex = btreeCmp.getKeyFieldCount()
+                + rtreeSearchPredicate.getLowKeyComparator().getKeyFieldCount();
+
         // If it is required to use the result of searchCallback.proceed(),
         // we need to initialize the byte array that contains true and false result.
         //
@@ -212,7 +215,7 @@ public class LSMRTreeSearchCursor extends LSMRTreeAbstractCursor {
             //            serializerDeserializerForProceedReturnResult.serialize(AInt32One, castBuffer.getDataOutput());
             //            System.arraycopy(castBuffer.getByteArray(), 0, returnValuesArrayForProccedResult, 5, castBuffer.getLength());
 
-            tupleBuilderForProceedResult = new ArrayTupleBuilder(rDescForProceedReturnResult.getFieldCount());
+            tupleBuilderForProceedResult = new ArrayTupleBuilder(numberOfFieldFromIndex + 1);
             copyTuple = new ArrayTupleReference();
 
         }

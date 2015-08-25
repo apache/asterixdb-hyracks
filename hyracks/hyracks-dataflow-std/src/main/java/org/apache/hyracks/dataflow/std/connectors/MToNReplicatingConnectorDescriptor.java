@@ -17,20 +17,20 @@ package org.apache.hyracks.dataflow.std.connectors;
 import java.nio.ByteBuffer;
 import java.util.BitSet;
 
-import edu.uci.ics.hyracks.api.comm.IFrameWriter;
-import edu.uci.ics.hyracks.api.comm.IPartitionCollector;
-import edu.uci.ics.hyracks.api.comm.IPartitionWriterFactory;
-import edu.uci.ics.hyracks.api.context.IHyracksTaskContext;
-import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
-import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
-import edu.uci.ics.hyracks.api.job.IConnectorDescriptorRegistry;
-import edu.uci.ics.hyracks.api.util.ExecutionTimeProfiler;
-import edu.uci.ics.hyracks.api.util.ExecutionTimeStopWatch;
-import edu.uci.ics.hyracks.api.util.OperatorExecutionTimeProfiler;
-import edu.uci.ics.hyracks.dataflow.std.base.AbstractMToNConnectorDescriptor;
-import edu.uci.ics.hyracks.dataflow.std.collectors.NonDeterministicChannelReader;
-import edu.uci.ics.hyracks.dataflow.std.collectors.NonDeterministicFrameReader;
-import edu.uci.ics.hyracks.dataflow.std.collectors.PartitionCollector;
+import org.apache.hyracks.api.comm.IFrameWriter;
+import org.apache.hyracks.api.comm.IPartitionCollector;
+import org.apache.hyracks.api.comm.IPartitionWriterFactory;
+import org.apache.hyracks.api.context.IHyracksTaskContext;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.job.IConnectorDescriptorRegistry;
+import org.apache.hyracks.api.util.ExecutionTimeProfiler;
+import org.apache.hyracks.api.util.ExecutionTimeStopWatch;
+import org.apache.hyracks.api.util.OperatorExecutionTimeProfiler;
+import org.apache.hyracks.dataflow.std.base.AbstractMToNConnectorDescriptor;
+import org.apache.hyracks.dataflow.std.collectors.NonDeterministicChannelReader;
+import org.apache.hyracks.dataflow.std.collectors.NonDeterministicFrameReader;
+import org.apache.hyracks.dataflow.std.collectors.PartitionCollector;
 
 public class MToNReplicatingConnectorDescriptor extends AbstractMToNConnectorDescriptor {
     public MToNReplicatingConnectorDescriptor(IConnectorDescriptorRegistry spec) {

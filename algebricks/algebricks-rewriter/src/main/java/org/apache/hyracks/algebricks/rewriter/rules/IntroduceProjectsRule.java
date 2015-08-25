@@ -16,13 +16,13 @@ package org.apache.hyracks.algebricks.rewriter.rules;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableObject;
-
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.Triple;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
@@ -49,6 +49,8 @@ public class IntroduceProjectsRule implements IAlgebraicRewriteRule {
     private final Set<LogicalVariable> producedVars = new HashSet<LogicalVariable>();
     private final List<LogicalVariable> projectVars = new ArrayList<LogicalVariable>();
     protected boolean hasRun = false;
+    // Keep track of used variables after the current operator, including used variables in itself.
+    private final HashMap<AbstractLogicalOperator, HashSet<LogicalVariable>> allUsedVarsAfterOpMap = new HashMap<AbstractLogicalOperator, HashSet<LogicalVariable>>();
 
     @Override
     public boolean rewritePost(Mutable<ILogicalOperator> opRef, IOptimizationContext context) {
@@ -61,7 +63,36 @@ public class IntroduceProjectsRule implements IAlgebraicRewriteRule {
             return false;
         }
         hasRun = true;
+
+        // Collect all used variables after each operator, including the used variables in itself in the plan.
+        Set<LogicalVariable> parentUsedVars = new HashSet<LogicalVariable>();
+        collectUsedVars(opRef, parentUsedVars);
+
+        // Introduce projects
         return introduceProjects(null, -1, opRef, Collections.<LogicalVariable> emptySet(), context);
+    }
+
+    // Collect all used variables after each operator, including the used variables in itself in the plan.
+    // Collecting information is required since there can be multiple paths in the plan and introduceProjects()
+    // can deal with only one path at a time during conducting depth-first-search.
+    protected void collectUsedVars(Mutable<ILogicalOperator> opRef, Set<LogicalVariable> parentUsedVars)
+            throws AlgebricksException {
+        AbstractLogicalOperator op = (AbstractLogicalOperator) opRef.getValue();
+        HashSet<LogicalVariable> usedVarsPerOp = new HashSet<LogicalVariable>();
+        VariableUtilities.getUsedVariables(op, usedVarsPerOp);
+        usedVarsPerOp.addAll(parentUsedVars);
+
+        if (allUsedVarsAfterOpMap.get(op) == null) {
+            allUsedVarsAfterOpMap.put(op, usedVarsPerOp);
+        } else {
+            allUsedVarsAfterOpMap.get(op).addAll(usedVarsPerOp);
+        }
+
+        for (int i = 0; i < op.getInputs().size(); i++) {
+            Mutable<ILogicalOperator> inputOpRef = op.getInputs().get(i);
+            collectUsedVars(inputOpRef, usedVarsPerOp);
+        }
+
     }
 
     protected boolean introduceProjects(AbstractLogicalOperator parentOp, int parentInputIndex,
@@ -74,9 +105,15 @@ public class IntroduceProjectsRule implements IAlgebraicRewriteRule {
         VariableUtilities.getUsedVariables(op, usedVars);
 
         // In the top-down pass, maintain a set of variables that are used in op and all its parents.
+        // This is a necessary step for the newly created project operator during this optimization,
+        // since we already have all information from collectUsedVars() method for the other operators.
         HashSet<LogicalVariable> parentsUsedVars = new HashSet<LogicalVariable>();
         parentsUsedVars.addAll(parentUsedVars);
         parentsUsedVars.addAll(usedVars);
+
+        if (allUsedVarsAfterOpMap.get(op) != null) {
+            parentsUsedVars.addAll(allUsedVarsAfterOpMap.get(op));
+        }
 
         // Descend into children.
         for (int i = 0; i < op.getInputs().size(); i++) {

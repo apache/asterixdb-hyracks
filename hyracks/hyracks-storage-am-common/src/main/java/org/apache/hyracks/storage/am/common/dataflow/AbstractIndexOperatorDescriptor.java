@@ -138,4 +138,9 @@ public abstract class AbstractIndexOperatorDescriptor extends AbstractSingleActi
     public byte[] getValuesForOpercationCallbackProceedReturnResult() {
         return null;
     }
+
+    @Override
+    public long getLimitNumberOfResult() {
+        return -1;
+    }
 }

@@ -12,10 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package edu.uci.ics.hyracks.data.std.api;
+package org.apache.hyracks.data.std.api;
 
-public interface IComparableForStringWithoutLengthByte {
-    // For String Type only. If a string does not include the length (2 byte) in the beginning and
-    // the length for a string is provided by the parameter
-    public int compareToWithoutLengthByte(byte[] bytes, int start, int length);
+public interface IHashableForStringWithoutLengthByte {
+    public int hash(int length);
 }

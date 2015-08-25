@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package edu.uci.ics.hyracks.algebricks.common.utils;
+package org.apache.hyracks.algebricks.common.utils;
 
 public class Quadruple<T1, T2, T3, T4> {
     public T1 first;

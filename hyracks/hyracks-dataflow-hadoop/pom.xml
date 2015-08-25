@@ -74,12 +74,12 @@
   		<type>jar</type>
   		<scope>compile</scope>
   	</dependency>
-  	<dependency>
-  		<groupId>edu.uci.ics.dcache</groupId>
-  		<artifactId>dcache-client</artifactId>
-  		<version>0.0.1</version>
-  		<scope>compile</scope>
-  	</dependency>
+    <dependency>
+        <groupId>edu.uci.ics.dcache</groupId>
+        <artifactId>dcache-client</artifactId>
+        <version>0.0.1</version>
+        <scope>compile</scope>
+    </dependency>
   	<dependency>
   		<groupId>org.apache.hyracks</groupId>
   		<artifactId>hyracks-dataflow-std</artifactId>

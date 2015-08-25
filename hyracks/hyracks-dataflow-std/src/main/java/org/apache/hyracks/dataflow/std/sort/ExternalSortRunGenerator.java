@@ -16,25 +16,25 @@ package org.apache.hyracks.dataflow.std.sort;
 
 import java.nio.ByteBuffer;
 
-import edu.uci.ics.hyracks.api.comm.IFrameWriter;
-import edu.uci.ics.hyracks.api.context.IHyracksTaskContext;
-import edu.uci.ics.hyracks.api.dataflow.value.IBinaryComparatorFactory;
-import edu.uci.ics.hyracks.api.dataflow.value.INormalizedKeyComputerFactory;
-import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
-import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
-import edu.uci.ics.hyracks.api.io.FileReference;
-import edu.uci.ics.hyracks.api.util.ExecutionTimeProfiler;
-import edu.uci.ics.hyracks.api.util.ExecutionTimeStopWatch;
-import edu.uci.ics.hyracks.api.util.OperatorExecutionTimeProfiler;
-import edu.uci.ics.hyracks.dataflow.common.io.RunFileWriter;
-import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.EnumFreeSlotPolicy;
-import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.FrameFreeSlotBiggestFirst;
-import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.FrameFreeSlotLastFit;
-import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.FrameFreeSlotSmallestFit;
-import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.IFrameBufferManager;
-import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.IFrameFreeSlotPolicy;
-import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.VariableFrameMemoryManager;
-import edu.uci.ics.hyracks.dataflow.std.sort.buffermanager.VariableFramePool;
+import org.apache.hyracks.api.comm.IFrameWriter;
+import org.apache.hyracks.api.context.IHyracksTaskContext;
+import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import org.apache.hyracks.api.dataflow.value.INormalizedKeyComputerFactory;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.io.FileReference;
+import org.apache.hyracks.api.util.ExecutionTimeProfiler;
+import org.apache.hyracks.api.util.ExecutionTimeStopWatch;
+import org.apache.hyracks.api.util.OperatorExecutionTimeProfiler;
+import org.apache.hyracks.dataflow.common.io.RunFileWriter;
+import org.apache.hyracks.dataflow.std.sort.buffermanager.EnumFreeSlotPolicy;
+import org.apache.hyracks.dataflow.std.sort.buffermanager.FrameFreeSlotBiggestFirst;
+import org.apache.hyracks.dataflow.std.sort.buffermanager.FrameFreeSlotLastFit;
+import org.apache.hyracks.dataflow.std.sort.buffermanager.FrameFreeSlotSmallestFit;
+import org.apache.hyracks.dataflow.std.sort.buffermanager.IFrameBufferManager;
+import org.apache.hyracks.dataflow.std.sort.buffermanager.IFrameFreeSlotPolicy;
+import org.apache.hyracks.dataflow.std.sort.buffermanager.VariableFrameMemoryManager;
+import org.apache.hyracks.dataflow.std.sort.buffermanager.VariableFramePool;
 
 public class ExternalSortRunGenerator extends AbstractSortRunGenerator {
 

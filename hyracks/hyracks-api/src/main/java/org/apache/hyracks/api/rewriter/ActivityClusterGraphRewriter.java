@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,7 +25,6 @@ import java.util.Queue;
 import java.util.Set;
 
 import org.apache.commons.lang3.tuple.Pair;
-
 import org.apache.hyracks.api.dataflow.ActivityId;
 import org.apache.hyracks.api.dataflow.ConnectorDescriptorId;
 import org.apache.hyracks.api.dataflow.IActivity;
@@ -37,12 +36,12 @@ import org.apache.hyracks.api.job.ActivityClusterId;
 import org.apache.hyracks.api.rewriter.runtime.SuperActivity;
 
 /**
- * This class rewrite the AcivityClusterGraph to eliminate
+ * This class rewrite the ActivityClusterGraph to eliminate
  * all one-to-one connections and merge one-to-one connected
  * DAGs into super activities.
  * </p>
  * Each super activity internally maintains a DAG and execute it at the runtime.
- * 
+ *
  * @author yingyib
  */
 public class ActivityClusterGraphRewriter {
@@ -52,7 +51,7 @@ public class ActivityClusterGraphRewriter {
      * rewrite an activity cluster graph to eliminate
      * all one-to-one connections and merge one-to-one connected
      * DAGs into super activities.
-     * 
+     *
      * @param acg
      *            the activity cluster graph
      */
@@ -71,7 +70,7 @@ public class ActivityClusterGraphRewriter {
 
     /**
      * rewrite the blocking relationship among activity cluster
-     * 
+     *
      * @param ac
      *            the activity cluster to be rewritten
      */
@@ -115,7 +114,7 @@ public class ActivityClusterGraphRewriter {
 
     /**
      * rewrite an activity cluster internally
-     * 
+     *
      * @param ac
      *            the activity cluster to be rewritten
      */
@@ -319,7 +318,7 @@ public class ActivityClusterGraphRewriter {
 
     /**
      * Create a new super activity
-     * 
+     *
      * @param acg
      *            the activity cluster
      * @param superActivities
@@ -347,7 +346,7 @@ public class ActivityClusterGraphRewriter {
 
     /**
      * One super activity swallows another existing super activity.
-     * 
+     *
      * @param superActivities
      *            the map from activity id to current super activities
      * @param toBeExpendedMap

@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,6 +18,8 @@ package org.apache.hyracks.storage.am.lsm.invertedindex.api;
 public interface IInvertedIndexSearchModifier {
     public int getOccurrenceThreshold(int numQueryTokens);
 
+    // PrefixLists: inverted list cursors all of their elements will be added - similar to UNION of two inverted list cursors.
+    // SuffixLists: inverted list cursors that their elements will be added only if the element already exists in the merged inverted list cursors.
     public int getNumPrefixLists(int occurrenceThreshold, int numInvLists);
 
     public short getNumTokensLowerBound(short numQueryTokens);

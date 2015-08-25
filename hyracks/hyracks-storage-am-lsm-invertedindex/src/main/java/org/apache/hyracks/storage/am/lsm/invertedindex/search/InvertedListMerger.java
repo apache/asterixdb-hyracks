@@ -23,7 +23,6 @@ import org.apache.hyracks.api.context.IHyracksCommonContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.data.std.primitive.IntegerPointable;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.dataflow.common.data.marshalling.IntegerSerializerDeserializer;
 import org.apache.hyracks.storage.am.common.api.IndexException;
 import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
 import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInvertedIndex;
@@ -47,10 +46,12 @@ public class InvertedListMerger {
 
     public void merge(ArrayList<IInvertedListCursor> invListCursors, int occurrenceThreshold, int numPrefixLists,
             SearchResult searchResult) throws HyracksDataException, IndexException {
+        // Order the cursor whose length is shortest first.
         Collections.sort(invListCursors);
         int numInvLists = invListCursors.size();
         SearchResult result = null;
         for (int i = 0; i < numInvLists; i++) {
+            // new -> prev, then reset new.
             SearchResult swapTemp = prevSearchResult;
             prevSearchResult = newSearchResult;
             newSearchResult = swapTemp;
@@ -65,6 +66,7 @@ public class InvertedListMerger {
             IInvertedListCursor invListCursor = invListCursors.get(i);
             // search happens here.
             invListCursor.pinPages();
+            // PrefixLists: inverted list cursors all of their elements will be added - similar to UNION of two inverted list cursors.
             if (i < numPrefixLists) {
                 // Merge prefix list.
                 mergePrefixList(invListCursor, prevSearchResult, result);
@@ -101,14 +103,22 @@ public class InvertedListMerger {
         while (resultTidx < resultFrameTupleAcc.getTupleCount()) {
 
             resultTuple.reset(prevCurrentBuffer.array(), resultFrameTupleAcc.getTupleStartOffset(resultTidx));
-            int count = IntegerPointable.getInteger(resultTuple.getFieldData(0), resultTuple.getFieldStart(resultTuple.getFieldCount() - 1));
+            int count = IntegerPointable.getInteger(resultTuple.getFieldData(0),
+                    resultTuple.getFieldStart(resultTuple.getFieldCount() - 1));
 
             if (invListCursor.containsKey(resultTuple, invListCmp)) {
                 count++;
                 newSearchResult.append(resultTuple, count);
+                //                System.out.println("mergeSuffixListProbe - cmp0 added: " + count + " #result: "
+                //                        + newSearchResult.numResults);
             } else {
+                //                System.out.println("mergeSuffixListProbe -   count + numInvLists - invListIx: "
+                //                        + (count + numInvLists - invListIx) + " occurrenceThreshold: " + occurrenceThreshold);
+
                 if (count + numInvLists - invListIx > occurrenceThreshold) {
                     newSearchResult.append(resultTuple, count);
+                    //                    System.out.println("mergeSuffixListProbe - cmp !=0 added: " + count + " #result: "
+                    //                            + newSearchResult.numResults);
                 }
             }
 
@@ -147,6 +157,8 @@ public class InvertedListMerger {
         if (invListCursor.hasNext())
             invListCursor.next();
 
+        //        System.out.println("cursor: " + invListCursor + "mergeSuffixListScan - invListNumTuples: " + invListNumTuples);
+
         while (invListTidx < invListNumTuples && resultTidx < resultFrameTupleAcc.getTupleCount()) {
 
             ITupleReference invListTuple = invListCursor.getTuple();
@@ -155,8 +167,11 @@ public class InvertedListMerger {
 
             int cmp = invListCmp.compare(invListTuple, resultTuple);
             if (cmp == 0) {
-                int count = IntegerPointable.getInteger(resultTuple.getFieldData(0), resultTuple.getFieldStart(resultTuple.getFieldCount() - 1)) + 1;
+                int count = IntegerPointable.getInteger(resultTuple.getFieldData(0),
+                        resultTuple.getFieldStart(resultTuple.getFieldCount() - 1)) + 1;
                 newSearchResult.append(resultTuple, count);
+                //                System.out.println("mergeSuffixListScan cmp0 added. count: " + count + " #result: "
+                //                        + newSearchResult.numResults);
                 advanceCursor = true;
                 advancePrevResult = true;
             } else {
@@ -164,9 +179,12 @@ public class InvertedListMerger {
                     advanceCursor = true;
                     advancePrevResult = false;
                 } else {
-                    int count = IntegerPointable.getInteger(resultTuple.getFieldData(0), resultTuple.getFieldStart(resultTuple.getFieldCount() - 1));
+                    int count = IntegerPointable.getInteger(resultTuple.getFieldData(0),
+                            resultTuple.getFieldStart(resultTuple.getFieldCount() - 1));
                     if (count + numInvLists - invListIx > occurrenceThreshold) {
                         newSearchResult.append(resultTuple, count);
+                        //                        System.out.println("mergeSuffixListScan cmp>0 added. count: " + count + " #result: "
+                        //                                + newSearchResult.numResults);
                     }
                     advanceCursor = false;
                     advancePrevResult = true;
@@ -198,9 +216,12 @@ public class InvertedListMerger {
 
             resultTuple.reset(prevCurrentBuffer.array(), resultFrameTupleAcc.getTupleStartOffset(resultTidx));
 
-            int count = IntegerPointable.getInteger(resultTuple.getFieldData(0), resultTuple.getFieldStart(resultTuple.getFieldCount() - 1));
+            int count = IntegerPointable.getInteger(resultTuple.getFieldData(0),
+                    resultTuple.getFieldStart(resultTuple.getFieldCount() - 1));
             if (count + numInvLists - invListIx > occurrenceThreshold) {
                 newSearchResult.append(resultTuple, count);
+                //                System.out.println("mergeSuffixListScan remaining added. count: " + count + " #result: "
+                //                        + newSearchResult.numResults);
             }
 
             resultTidx++;
@@ -237,6 +258,8 @@ public class InvertedListMerger {
         if (invListCursor.hasNext())
             invListCursor.next();
 
+        //        System.out.println("cursor: " + invListCursor + " mergePrefixList - invListNumTuples: " + invListNumTuples);
+
         while (invListTidx < invListNumTuples && resultTidx < resultFrameTupleAcc.getTupleCount()) {
 
             ITupleReference invListTuple = invListCursor.getTuple();
@@ -244,19 +267,24 @@ public class InvertedListMerger {
 
             int cmp = invListCmp.compare(invListTuple, resultTuple);
             if (cmp == 0) {
-                int count = IntegerPointable.getInteger(resultTuple.getFieldData(0), resultTuple.getFieldStart(resultTuple.getFieldCount() - 1)) + 1;
+                int count = IntegerPointable.getInteger(resultTuple.getFieldData(0),
+                        resultTuple.getFieldStart(resultTuple.getFieldCount() - 1)) + 1;
                 newSearchResult.append(resultTuple, count);
+                //                System.out.println("cmp0 added. count: " + count + " #result: " + newSearchResult.numResults);
                 advanceCursor = true;
                 advancePrevResult = true;
             } else {
                 if (cmp < 0) {
                     int count = 1;
                     newSearchResult.append(invListTuple, count);
+                    //                    System.out.println("cmp<0 added. count: " + count + " #result: " + newSearchResult.numResults);
                     advanceCursor = true;
                     advancePrevResult = false;
                 } else {
-                    int count = IntegerPointable.getInteger(resultTuple.getFieldData(0), resultTuple.getFieldStart(resultTuple.getFieldCount() - 1));
+                    int count = IntegerPointable.getInteger(resultTuple.getFieldData(0),
+                            resultTuple.getFieldStart(resultTuple.getFieldCount() - 1));
                     newSearchResult.append(resultTuple, count);
+                    //                    System.out.println("cmp>0 added. count: " + count + " #result: " + newSearchResult.numResults);
                     advanceCursor = false;
                     advancePrevResult = true;
                 }
@@ -286,6 +314,7 @@ public class InvertedListMerger {
         while (invListTidx < invListNumTuples) {
             ITupleReference invListTuple = invListCursor.getTuple();
             newSearchResult.append(invListTuple, 1);
+            //            System.out.println("remaining added. count: 1" + " #result: " + newSearchResult.numResults);
             invListTidx++;
             if (invListCursor.hasNext()) {
                 invListCursor.next();
@@ -297,7 +326,8 @@ public class InvertedListMerger {
 
             resultTuple.reset(prevCurrentBuffer.array(), resultFrameTupleAcc.getTupleStartOffset(resultTidx));
 
-            int count = IntegerPointable.getInteger(resultTuple.getFieldData(0), resultTuple.getFieldStart(resultTuple.getFieldCount() - 1));
+            int count = IntegerPointable.getInteger(resultTuple.getFieldData(0),
+                    resultTuple.getFieldStart(resultTuple.getFieldCount() - 1));
             newSearchResult.append(resultTuple, count);
 
             resultTidx++;

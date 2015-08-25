@@ -14,12 +14,12 @@
  */
 package org.apache.hyracks.data.std.accessors;
 
-import edu.uci.ics.hyracks.api.dataflow.value.IBinaryHashFunction;
-import edu.uci.ics.hyracks.api.dataflow.value.IBinaryHashFunctionFactory;
-import edu.uci.ics.hyracks.data.std.api.IHashable;
-import edu.uci.ics.hyracks.data.std.api.IHashableForStringWithoutLengthByte;
-import edu.uci.ics.hyracks.data.std.api.IPointable;
-import edu.uci.ics.hyracks.data.std.api.IPointableFactory;
+import org.apache.hyracks.api.dataflow.value.IBinaryHashFunction;
+import org.apache.hyracks.api.dataflow.value.IBinaryHashFunctionFactory;
+import org.apache.hyracks.data.std.api.IHashable;
+import org.apache.hyracks.data.std.api.IHashableForStringWithoutLengthByte;
+import org.apache.hyracks.data.std.api.IPointable;
+import org.apache.hyracks.data.std.api.IPointableFactory;
 
 public class PointableBinaryHashFunctionFactory implements IBinaryHashFunctionFactory {
     private static final long serialVersionUID = 1L;

@@ -12,16 +12,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hyracks.algebricks.core.rewriter.base;
 
-import org.apache.commons.lang3.mutable.Mutable;
-import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
-import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
-import org.apache.hyracks.algebricks.core.algebra.base.IOptimizationContext;
+package org.apache.hyracks.storage.am.lsm.invertedindex.search;
 
-public interface IAlgebraicRewriteRule {
-    public boolean rewritePre(Mutable<ILogicalOperator> opRef, IOptimizationContext context) throws AlgebricksException;
+import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInvertedIndexSearchModifier;
+import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInvertedIndexSearchModifierFactory;
 
-    public boolean rewritePost(Mutable<ILogicalOperator> opRef, IOptimizationContext context)
-            throws AlgebricksException;
+public class DisjunctiveSearchModifierFactory implements IInvertedIndexSearchModifierFactory {
+    private static final long serialVersionUID = 1L;
+
+    @Override
+    public IInvertedIndexSearchModifier createSearchModifier() {
+        return new DisjunctiveSearchModifier();
+    }
 }

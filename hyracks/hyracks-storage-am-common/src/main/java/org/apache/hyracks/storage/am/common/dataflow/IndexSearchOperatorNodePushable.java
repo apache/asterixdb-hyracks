@@ -17,31 +17,35 @@ package org.apache.hyracks.storage.am.common.dataflow;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-import edu.uci.ics.hyracks.api.comm.VSizeFrame;
-import edu.uci.ics.hyracks.api.context.IHyracksTaskContext;
-import edu.uci.ics.hyracks.api.dataflow.value.INullWriter;
-import edu.uci.ics.hyracks.api.dataflow.value.IRecordDescriptorProvider;
-import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
-import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
-import edu.uci.ics.hyracks.api.util.ExecutionTimeProfiler;
-import edu.uci.ics.hyracks.api.util.ExecutionTimeStopWatch;
-import edu.uci.ics.hyracks.api.util.OperatorExecutionTimeProfiler;
-import edu.uci.ics.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
-import edu.uci.ics.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
-import edu.uci.ics.hyracks.dataflow.common.comm.io.FrameTupleAppender;
-import edu.uci.ics.hyracks.dataflow.common.comm.util.FrameUtils;
-import edu.uci.ics.hyracks.dataflow.common.data.accessors.FrameTupleReference;
-import edu.uci.ics.hyracks.dataflow.common.data.accessors.ITupleReference;
-import edu.uci.ics.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
-import edu.uci.ics.hyracks.storage.am.common.api.IIndex;
-import edu.uci.ics.hyracks.storage.am.common.api.IIndexAccessor;
-import edu.uci.ics.hyracks.storage.am.common.api.IIndexCursor;
-import edu.uci.ics.hyracks.storage.am.common.api.IIndexDataflowHelper;
-import edu.uci.ics.hyracks.storage.am.common.api.ISearchOperationCallback;
-import edu.uci.ics.hyracks.storage.am.common.api.ISearchPredicate;
-import edu.uci.ics.hyracks.storage.am.common.impls.NoOpOperationCallback;
-import edu.uci.ics.hyracks.storage.am.common.tuples.PermutingFrameTupleReference;
+import org.apache.hyracks.api.comm.VSizeFrame;
+import org.apache.hyracks.api.context.IHyracksTaskContext;
+import org.apache.hyracks.api.dataflow.value.IBinaryComparator;
+import org.apache.hyracks.api.dataflow.value.INullWriter;
+import org.apache.hyracks.api.dataflow.value.IRecordDescriptorProvider;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.util.ExecutionTimeProfiler;
+import org.apache.hyracks.api.util.ExecutionTimeStopWatch;
+import org.apache.hyracks.api.util.OperatorExecutionTimeProfiler;
+import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
+import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
+import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAppender;
+import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
+import org.apache.hyracks.dataflow.common.data.accessors.FrameTupleReference;
+import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
+import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
+import org.apache.hyracks.hdfs.lib.RawBinaryComparatorFactory;
+import org.apache.hyracks.storage.am.common.api.IIndex;
+import org.apache.hyracks.storage.am.common.api.IIndexAccessor;
+import org.apache.hyracks.storage.am.common.api.IIndexCursor;
+import org.apache.hyracks.storage.am.common.api.IIndexDataflowHelper;
+import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
+import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
+import org.apache.hyracks.storage.am.common.impls.NoOpOperationCallback;
+import org.apache.hyracks.storage.am.common.tuples.PermutingFrameTupleReference;
 
 public abstract class IndexSearchOperatorNodePushable extends AbstractUnaryInputUnaryOutputOperatorNodePushable {
     protected final IIndexOperatorDescriptor opDesc;
@@ -72,11 +76,27 @@ public abstract class IndexSearchOperatorNodePushable extends AbstractUnaryInput
     protected PermutingFrameTupleReference minFilterKey;
     protected PermutingFrameTupleReference maxFilterKey;
 
+    // Need to keep the result of search operation callback result?
+    protected boolean useOpercationCallbackProceedReturnResult = false;
+    protected byte[] valuesForOpercationCallbackProceedReturnResult = null;
+
+    // When useOpercationCallbackProceedReturnResult is true, and
+    // this variable is set to a non-negative number, an index-search only generates the given number of results.
+    protected long limitNumberOfResult = -1;
+    protected boolean useLimitNumberOfResult = false;
+
+    protected long searchedTupleCount = 0;
+    protected IBinaryComparator rawComp = null;
+
     // Added to measure the execution time when the profiler setting is enabled
     protected ExecutionTimeStopWatch profilerSW;
     protected String nodeJobSignature;
     protected String taskId;
     protected String indexType;
+
+    // For the experiment
+    private static final Logger LOGGER = Logger.getLogger(IndexSearchOperatorNodePushable.class.getName());
+    private static final Level LVL = Level.WARNING;
 
     public IndexSearchOperatorNodePushable(IIndexOperatorDescriptor opDesc, IHyracksTaskContext ctx, int partition,
             IRecordDescriptorProvider recordDescProvider, int[] minFilterFieldIndexes, int[] maxFilterFieldIndexes) {
@@ -99,6 +119,16 @@ public abstract class IndexSearchOperatorNodePushable extends AbstractUnaryInput
         if (maxFilterFieldIndexes != null && maxFilterFieldIndexes.length > 0) {
             maxFilterKey = new PermutingFrameTupleReference();
             maxFilterKey.setFieldPermutation(maxFilterFieldIndexes);
+        }
+
+        // Used for LIMIT push-down
+        this.limitNumberOfResult = opDesc.getLimitNumberOfResult();
+        this.useOpercationCallbackProceedReturnResult = opDesc.getUseOpercationCallbackProceedReturnResult();
+        if (this.useOpercationCallbackProceedReturnResult && this.limitNumberOfResult > -1) {
+            this.useLimitNumberOfResult = true;
+            this.rawComp = RawBinaryComparatorFactory.INSTANCE.createBinaryComparator();
+            this.valuesForOpercationCallbackProceedReturnResult = opDesc
+                    .getValuesForOpercationCallbackProceedReturnResult();
         }
     }
 
@@ -168,8 +198,6 @@ public abstract class IndexSearchOperatorNodePushable extends AbstractUnaryInput
 
         try {
             tb = new ArrayTupleBuilder(recordDesc.getFieldCount());
-            System.out.println("recordDesc.getFieldCount()" + recordDesc.getFieldCount() + " out field count: "
-                    + outputRecDesc.getFieldCount());
             dos = tb.getDataOutput();
             appender = new FrameTupleAppender(new VSizeFrame(ctx), true);
             ISearchOperationCallback searchCallback = opDesc.getSearchOpCallbackFactory()
@@ -187,6 +215,10 @@ public abstract class IndexSearchOperatorNodePushable extends AbstractUnaryInput
 
     protected void writeSearchResults(int tupleIndex) throws Exception {
         boolean matched = false;
+        //        if (useLimitNumberOfResult) {
+        //            LOGGER.log(LVL, "***** [Index-only experiment] INDEX-SEARCH LIMIT push-down will be applied. LIMIT count:"
+        //                    + limitNumberOfResult + " " + searchedTupleCount);
+        //        }
         while (cursor.hasNext()) {
             matched = true;
             tb.reset();
@@ -205,17 +237,35 @@ public abstract class IndexSearchOperatorNodePushable extends AbstractUnaryInput
             }
             ITupleReference tuple = cursor.getTuple();
             for (int i = 0; i < tuple.getFieldCount(); i++) {
-                dos.write(tuple.getFieldData(i), tuple.getFieldStart(i), tuple.getFieldLength(i));
-                tb.addFieldEndOffset();
                 //                ByteArrayInputStream inStreamZero = new ByteArrayInputStream(tuple.getFieldData(i),
                 //                        tuple.getFieldStart(i), tuple.getFieldLength(i));
+                //
                 //                int fieldNo = i;
                 //                if (retainInput) {
                 //                    fieldNo += frameTuple.getFieldCount();
                 //                }
+                //
                 //                Object test = outputRecDesc.getFields()[fieldNo].deserialize(new DataInputStream(inStreamZero));
-                //                System.out.println(test + " " + opDesc.getActivityId());
+                //                System.out.println(test + " ");
+                //
+                dos.write(tuple.getFieldData(i), tuple.getFieldStart(i), tuple.getFieldLength(i));
+                tb.addFieldEndOffset();
             }
+
+            //            String testMsg = "";
+            //            for (int i = 0; i < tuple.getFieldCount(); i++) {
+            //                ByteArrayInputStream inStreamZero = new ByteArrayInputStream(tuple.getFieldData(i),
+            //                        tuple.getFieldStart(i), tuple.getFieldLength(i));
+            //                int fieldNo = i;
+            //                if (retainInput) {
+            //                    fieldNo += frameTuple.getFieldCount();
+            //                }
+            //                Object test = outputRecDesc.getFields()[fieldNo].deserialize(new DataInputStream(inStreamZero));
+            //                //                System.out.print(test + " ");
+            //                testMsg += test + " ";
+            //            }
+            //            System.out.print(testMsg + "\n");
+
             // Added to measure the execution time when the profiler setting is enabled
             if (!ExecutionTimeProfiler.PROFILE_MODE) {
                 FrameUtils
@@ -225,6 +275,27 @@ public abstract class IndexSearchOperatorNodePushable extends AbstractUnaryInput
                 FrameUtils.appendToWriter(writer, appender, tb.getFieldEndOffsets(), tb.getByteArray(), 0,
                         tb.getSize(), profilerSW);
             }
+
+            if (useLimitNumberOfResult) {
+                int lastIndex = tuple.getFieldCount() - 1;
+
+                // Only count the number of tuples that the proceedReturnResult was successful.
+                // This means that we are getting a trustworthy tuple.
+                if (rawComp.compare(tuple.getFieldData(lastIndex), tuple.getFieldStart(lastIndex),
+                        tuple.getFieldLength(lastIndex), valuesForOpercationCallbackProceedReturnResult,
+                        tuple.getFieldLength(lastIndex), tuple.getFieldLength(lastIndex)) == 0) {
+                    searchedTupleCount++;
+                }
+
+                // If we hit the LIMIT number, no more tuples will be fetched.
+                if (searchedTupleCount >= limitNumberOfResult) {
+                    LOGGER.log(LVL,
+                            "***** [Index-only experiment] INDEX-SEARCH LIMIT push-down has been applied. LIMIT count:"
+                                    + limitNumberOfResult);
+                    break;
+                }
+            }
+
         }
 
         if (!matched && retainInput && retainNull) {
@@ -248,17 +319,22 @@ public abstract class IndexSearchOperatorNodePushable extends AbstractUnaryInput
             profilerSW.resume();
         }
 
-        accessor.reset(buffer);
-        int tupleCount = accessor.getTupleCount();
-        try {
-            for (int i = 0; i < tupleCount; i++) {
-                resetSearchPredicate(i);
-                cursor.reset();
-                indexAccessor.search(cursor, searchPred);
-                writeSearchResults(i);
+        if (!useLimitNumberOfResult || (useLimitNumberOfResult && searchedTupleCount < limitNumberOfResult)) {
+            accessor.reset(buffer);
+            int tupleCount = accessor.getTupleCount();
+            LOGGER.log(LVL, "***** [Index-only experiment] total tuple count:" + tupleCount);
+            try {
+                for (int i = 0; i < tupleCount; i++) {
+                    if (!useLimitNumberOfResult || (useLimitNumberOfResult && searchedTupleCount < limitNumberOfResult)) {
+                        resetSearchPredicate(i);
+                        cursor.reset();
+                        indexAccessor.search(cursor, searchPred);
+                        writeSearchResults(i);
+                    }
+                }
+            } catch (Exception e) {
+                throw new HyracksDataException(e);
             }
-        } catch (Exception e) {
-            throw new HyracksDataException(e);
         }
         // Added to measure the execution time when the profiler setting is enabled
         if (ExecutionTimeProfiler.PROFILE_MODE) {
@@ -276,6 +352,7 @@ public abstract class IndexSearchOperatorNodePushable extends AbstractUnaryInput
                 throw new HyracksDataException(e);
             }
             writer.close();
+
             // Added to measure the execution time when the profiler setting is enabled
             if (ExecutionTimeProfiler.PROFILE_MODE) {
                 profilerSW.finish();
