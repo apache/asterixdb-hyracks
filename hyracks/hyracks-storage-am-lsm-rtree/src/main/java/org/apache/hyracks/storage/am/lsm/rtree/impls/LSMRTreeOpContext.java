@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-package edu.uci.ics.hyracks.storage.am.lsm.rtree.impls;
+package org.apache.hyracks.storage.am.lsm.rtree.impls;
 
 import java.util.LinkedList;
 import java.util.List;

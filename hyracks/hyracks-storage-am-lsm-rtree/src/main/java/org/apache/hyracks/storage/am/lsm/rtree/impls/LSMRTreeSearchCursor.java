@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-package edu.uci.ics.hyracks.storage.am.lsm.rtree.impls;
+package org.apache.hyracks.storage.am.lsm.rtree.impls;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;

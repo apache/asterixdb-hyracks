@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package edu.uci.ics.hyracks.dataflow.std.result;
+package org.apache.hyracks.dataflow.std.result;
 
 import java.io.IOException;
 import java.io.PrintStream;

@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package edu.uci.ics.hyracks.algebricks.core.algebra.operators.logical.visitors;
+package org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors;
 
 import org.apache.commons.lang3.mutable.Mutable;
 

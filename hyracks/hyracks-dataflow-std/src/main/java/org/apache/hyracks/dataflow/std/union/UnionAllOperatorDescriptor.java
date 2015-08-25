@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package edu.uci.ics.hyracks.dataflow.std.union;
+package org.apache.hyracks.dataflow.std.union;
 
 import java.nio.ByteBuffer;
 

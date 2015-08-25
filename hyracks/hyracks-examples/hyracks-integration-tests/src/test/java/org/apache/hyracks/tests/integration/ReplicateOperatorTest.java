@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package edu.uci.ics.hyracks.tests.integration;
+package org.apache.hyracks.tests.integration;
 
 import java.io.BufferedReader;
 import java.io.File;
