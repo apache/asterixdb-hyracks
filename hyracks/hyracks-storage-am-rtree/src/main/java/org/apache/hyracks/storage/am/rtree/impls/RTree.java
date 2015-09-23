@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
@@ -832,6 +833,13 @@ public class RTree extends AbstractTreeIndex {
         public ITreeIndexCursor createSearchCursor(boolean exclusive) {
             return new RTreeSearchCursor((IRTreeInteriorFrame) interiorFrameFactory.createFrame(),
                     (IRTreeLeafFrame) leafFrameFactory.createFrame());
+        }
+
+        @Override
+        public IIndexCursor createSearchCursor(boolean exclusive, boolean useOperationCallbackProceedReturnResult,
+                RecordDescriptor rDesc, byte[] valuesForOperationCallbackProceedReturnResult) {
+            // This method is only required for the LSM based indexes
+            return null;
         }
 
         @Override

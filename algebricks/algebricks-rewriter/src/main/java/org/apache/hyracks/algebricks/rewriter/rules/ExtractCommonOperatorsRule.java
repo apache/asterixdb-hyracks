@@ -28,7 +28,6 @@ import java.util.Map;
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.mutable.MutableObject;
-
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.Pair;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
@@ -43,6 +42,7 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.AssignOperat
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.ExchangeOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.ProjectOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.ReplicateOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.SplitOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors.IsomorphismUtilities;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors.VariableUtilities;
 import org.apache.hyracks.algebricks.core.algebra.operators.physical.AssignPOperator;
@@ -446,6 +446,14 @@ public class ExtractCommonOperatorsRule implements IAlgebraicRewriteRule {
         int outputIndex = 0;
         if (opRef.getValue().getOperatorTag() == LogicalOperatorTag.REPLICATE) {
             ReplicateOperator rop = (ReplicateOperator) opRef.getValue();
+            List<Mutable<ILogicalOperator>> outputs = rop.getOutputs();
+            for (outputIndex = 0; outputIndex < outputs.size(); outputIndex++) {
+                if (outputs.get(outputIndex).equals(parentRef)) {
+                    break;
+                }
+            }
+        } else if (opRef.getValue().getOperatorTag() == LogicalOperatorTag.SPLIT) {
+            SplitOperator rop = (SplitOperator) opRef.getValue();
             List<Mutable<ILogicalOperator>> outputs = rop.getOutputs();
             for (outputIndex = 0; outputIndex < outputs.size(); outputIndex++) {
                 if (outputs.get(outputIndex).equals(parentRef)) {

@@ -19,8 +19,8 @@
 package org.apache.hyracks.algebricks.core.algebra.operators.logical;
 
 import java.util.List;
-import org.apache.commons.lang3.mutable.Mutable;
 
+import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalExpressionTag;
@@ -36,13 +36,13 @@ import org.apache.hyracks.algebricks.core.algebra.visitors.ILogicalOperatorVisit
 
 /**
  * It corresponds to the Map operator in other algebras.
- * 
+ *
  * @author Nicola
  */
 
 public class AssignOperator extends AbstractAssignOperator {
-	
-	private LocalOrderProperty explicitOrderingProperty;
+
+    private LocalOrderProperty explicitOrderingProperty;
 
     public AssignOperator(List<LogicalVariable> vars, List<Mutable<ILogicalExpression>> exprs) {
         super(vars, exprs);
@@ -113,11 +113,10 @@ public class AssignOperator extends AbstractAssignOperator {
     }
 
     public LocalOrderProperty getExplicitOrderingProperty() {
-		return explicitOrderingProperty;
-	}
+        return explicitOrderingProperty;
+    }
 
-	public void setExplicitOrderingProperty(
-			LocalOrderProperty explicitOrderingProperty) {
-		this.explicitOrderingProperty = explicitOrderingProperty;
-	}
+    public void setExplicitOrderingProperty(LocalOrderProperty explicitOrderingProperty) {
+        this.explicitOrderingProperty = explicitOrderingProperty;
+    }
 }

@@ -57,4 +57,9 @@ public class SearchPredicate extends AbstractSearchPredicate {
     public MultiComparator getHighKeyComparator() {
         return cmp;
     }
+
+    @Override
+    public String applicableIndexType() {
+        return "RTREE_INDEX";
+    }
 }

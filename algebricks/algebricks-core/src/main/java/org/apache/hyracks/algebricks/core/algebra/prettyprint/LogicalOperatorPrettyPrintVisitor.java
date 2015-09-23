@@ -55,6 +55,7 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.RunningAggre
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.ScriptOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SelectOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SinkOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.SplitOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SubplanOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.TokenizeOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.UnionAllOperator;
@@ -291,6 +292,13 @@ public class LogicalOperatorPrettyPrintVisitor implements ILogicalOperatorVisito
     }
 
     @Override
+    public String visitReplicateOperator(ReplicateOperator op, Integer indent) throws AlgebricksException {
+        StringBuilder buffer = new StringBuilder();
+        addIndent(buffer, indent).append("replicate ");
+        return buffer.toString();
+    }
+
+    @Override
     public String visitScriptOperator(ScriptOperator op, Integer indent) {
         StringBuilder buffer = new StringBuilder();
         addIndent(buffer, indent).append(
@@ -299,9 +307,10 @@ public class LogicalOperatorPrettyPrintVisitor implements ILogicalOperatorVisito
     }
 
     @Override
-    public String visitReplicateOperator(ReplicateOperator op, Integer indent) throws AlgebricksException {
+    public String visitSplitOperator(SplitOperator op, Integer indent) throws AlgebricksException {
         StringBuilder buffer = new StringBuilder();
-        addIndent(buffer, indent).append("replicate ");
+        LogicalVariable conditionalSplitVar = op.getConditionVar();
+        addIndent(buffer, indent).append("split [" + conditionalSplitVar + "]");
         return buffer.toString();
     }
 

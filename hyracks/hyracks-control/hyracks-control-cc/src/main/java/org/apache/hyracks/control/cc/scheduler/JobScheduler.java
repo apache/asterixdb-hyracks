@@ -31,9 +31,6 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import org.apache.hyracks.api.comm.NetworkAddress;
 import org.apache.hyracks.api.constraints.Constraint;
 import org.apache.hyracks.api.constraints.expressions.LValueConstraintExpression;
@@ -66,6 +63,8 @@ import org.apache.hyracks.control.cc.partitions.PartitionMatchMaker;
 import org.apache.hyracks.control.cc.work.JobCleanupWork;
 import org.apache.hyracks.control.common.job.PartitionState;
 import org.apache.hyracks.control.common.job.TaskAttemptDescriptor;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class JobScheduler {
     private static final Logger LOGGER = Logger.getLogger(JobScheduler.class.getName());
@@ -221,7 +220,7 @@ public class JobScheduler {
      * Runnability rank has the following semantics
      * Runnability(Runnable TaskCluster depending on completed TaskClusters) = {RUNNABLE, 0}
      * Runnability(Runnable TaskCluster) = max(Rank(Dependent TaskClusters)) + 1
-     * Runnability(Non-schedulable TaskCluster) = {NOT_RUNNABLE, _} 
+     * Runnability(Non-schedulable TaskCluster) = {NOT_RUNNABLE, _}
      */
     private Runnability assignRunnabilityRank(TaskCluster goal, Map<TaskCluster, Runnability> runnabilityMap) {
         if (LOGGER.isLoggable(Level.FINE)) {
@@ -626,7 +625,7 @@ public class JobScheduler {
 
     /**
      * Indicates that a single task attempt has encountered a failure.
-     * 
+     *
      * @param ta
      *            - Failed Task Attempt
      * @param ac
@@ -661,7 +660,7 @@ public class JobScheduler {
 
     /**
      * Indicates that the provided set of nodes have left the cluster.
-     * 
+     *
      * @param deadNodes
      *            - Set of failed nodes
      */

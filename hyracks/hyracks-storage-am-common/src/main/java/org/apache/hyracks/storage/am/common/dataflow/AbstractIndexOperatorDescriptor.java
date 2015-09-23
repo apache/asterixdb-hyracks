@@ -132,4 +132,19 @@ public abstract class AbstractIndexOperatorDescriptor extends AbstractSingleActi
     public ILocalResourceFactoryProvider getLocalResourceFactoryProvider() {
         return localResourceFactoryProvider;
     }
+
+    @Override
+    public boolean getUseOpercationCallbackProceedReturnResult() {
+        return false;
+    }
+
+    @Override
+    public byte[] getValuesForOpercationCallbackProceedReturnResult() {
+        return null;
+    }
+
+    @Override
+    public long getLimitNumberOfResult() {
+        return -1;
+    }
 }

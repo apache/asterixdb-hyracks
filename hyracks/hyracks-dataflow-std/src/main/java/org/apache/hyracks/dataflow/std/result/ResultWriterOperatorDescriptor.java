@@ -36,6 +36,9 @@ import org.apache.hyracks.api.dataset.ResultSetId;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.exceptions.HyracksException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+import org.apache.hyracks.api.util.ExecutionTimeProfiler;
+import org.apache.hyracks.api.util.ExecutionTimeStopWatch;
+import org.apache.hyracks.api.util.OperatorExecutionTimeProfiler;
 import org.apache.hyracks.dataflow.common.comm.io.FrameOutputStream;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
@@ -82,8 +85,31 @@ public class ResultWriterOperatorDescriptor extends AbstractSingleActivityOperat
         return new AbstractUnaryInputSinkOperatorNodePushable() {
             IFrameWriter datasetPartitionWriter;
 
+            // Added to measure the execution time when the profiler setting is enabled
+            private ExecutionTimeStopWatch profilerSW;
+            private String nodeJobSignature;
+            private String taskId;
+
             @Override
             public void open() throws HyracksDataException {
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW = new ExecutionTimeStopWatch();
+                    profilerSW.start();
+
+                    // The key of this job: nodeId + JobId + Joblet hash code
+                    nodeJobSignature = ctx.getJobletContext().getApplicationContext().getNodeId() + "_"
+                            + ctx.getJobletContext().getJobId() + "_" + ctx.getJobletContext().hashCode();
+
+                    // taskId: partition + taskId + started time
+                    taskId = ctx.getTaskAttemptId() + this.toString() + profilerSW.getStartTimeStamp();
+
+                    // Initialize the counter for this runtime instance
+                    OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId,
+                            ExecutionTimeProfiler.INIT, false);
+                    System.out.println("DISTRIBUTE_RESULT open() " + nodeJobSignature + " " + taskId);
+                }
+
                 try {
                     datasetPartitionWriter = dpm.createDatasetPartitionWriter(ctx, rsId, ordered, asyncMode, partition,
                             nPartitions);
@@ -96,21 +122,50 @@ public class ResultWriterOperatorDescriptor extends AbstractSingleActivityOperat
 
             @Override
             public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.resume();
+                }
+
                 frameTupleAccessor.reset(buffer);
                 for (int tIndex = 0; tIndex < frameTupleAccessor.getTupleCount(); tIndex++) {
                     resultSerializer.appendTuple(frameTupleAccessor, tIndex);
                     if (!frameOutputStream.appendTuple()) {
+                        // Added to measure the execution time when the profiler setting is enabled
+                        if (ExecutionTimeProfiler.PROFILE_MODE) {
+                            profilerSW.suspend();
+                        }
                         frameOutputStream.flush(datasetPartitionWriter);
+                        // Added to measure the execution time when the profiler setting is enabled
+                        if (ExecutionTimeProfiler.PROFILE_MODE) {
+                            profilerSW.resume();
+                        }
 
                         resultSerializer.appendTuple(frameTupleAccessor, tIndex);
                         frameOutputStream.appendTuple();
                     }
+                }
+
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.suspend();
                 }
             }
 
             @Override
             public void fail() throws HyracksDataException {
                 datasetPartitionWriter.fail();
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.finish();
+                    OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(
+                            nodeJobSignature,
+                            taskId,
+                            profilerSW.getMessage(
+                                    "DISTRIBUTE_RESULT\t" + ctx.getTaskAttemptId() + "\t" + this.toString(),
+                                    profilerSW.getStartTimeStamp()), false);
+                    System.out.println("DISTRIBUTE_RESULT fail() " + nodeJobSignature + " " + taskId);
+                }
             }
 
             @Override
@@ -119,6 +174,18 @@ public class ResultWriterOperatorDescriptor extends AbstractSingleActivityOperat
                     frameOutputStream.flush(datasetPartitionWriter);
                 }
                 datasetPartitionWriter.close();
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.finish();
+                    OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(
+                            nodeJobSignature,
+                            taskId,
+                            profilerSW.getMessage(
+                                    "DISTRIBUTE_RESULT\t" + ctx.getTaskAttemptId() + "\t" + this.toString(),
+                                    profilerSW.getStartTimeStamp()), false);
+                    System.out.println("DISTRIBUTE_RESULT close() " + nodeJobSignature + " " + taskId);
+                }
+
             }
         };
     }

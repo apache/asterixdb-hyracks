@@ -61,6 +61,7 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.RunningAggre
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.ScriptOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SelectOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SinkOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.SplitOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SubplanOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.TokenizeOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.UnionAllOperator;
@@ -290,6 +291,14 @@ public class IsomorphismOperatorVisitor implements ILogicalOperatorVisitor<Boole
         ScriptOperator scriptOpArg = (ScriptOperator) copyAndSubstituteVar(op, arg);
         boolean isomorphic = op.getScriptDescription().equals(scriptOpArg.getScriptDescription());
         return isomorphic;
+    }
+
+    @Override
+    public Boolean visitSplitOperator(SplitOperator op, ILogicalOperator arg) throws AlgebricksException {
+        AbstractLogicalOperator aop = (AbstractLogicalOperator) arg;
+        if (aop.getOperatorTag() != LogicalOperatorTag.SPLIT)
+            return Boolean.FALSE;
+        return Boolean.TRUE;
     }
 
     @Override

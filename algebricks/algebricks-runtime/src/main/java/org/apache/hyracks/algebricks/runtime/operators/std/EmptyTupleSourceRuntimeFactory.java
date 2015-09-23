@@ -24,6 +24,9 @@ import org.apache.hyracks.algebricks.runtime.operators.base.AbstractOneInputSour
 import org.apache.hyracks.api.comm.VSizeFrame;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.util.ExecutionTimeProfiler;
+import org.apache.hyracks.api.util.ExecutionTimeStopWatch;
+import org.apache.hyracks.api.util.OperatorExecutionTimeProfiler;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAppender;
 
@@ -46,16 +49,66 @@ public class EmptyTupleSourceRuntimeFactory implements IPushRuntimeFactory {
             private ArrayTupleBuilder tb = new ArrayTupleBuilder(0);
             private FrameTupleAppender appender = new FrameTupleAppender(new VSizeFrame(ctx));
 
+            // Added to measure the execution time when the profiler setting is enabled
+            private ExecutionTimeStopWatch profilerSW;
+            private String nodeJobSignature;
+            private String taskId;
+
             @Override
             public void open() throws HyracksDataException {
+
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW = new ExecutionTimeStopWatch();
+                    profilerSW.start();
+
+                    // The key of this job: nodeId + JobId + Joblet hash code
+                    nodeJobSignature = ctx.getJobletContext().getApplicationContext().getNodeId() + "_"
+                            + ctx.getJobletContext().getJobId() + "_" + ctx.getJobletContext().hashCode();
+
+                    // taskId: partition + taskId + started time
+                    taskId = ctx.getTaskAttemptId() + this.toString() + profilerSW.getStartTimeStamp();
+
+                    // Initialize the counter for this runtime instance
+                    OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId,
+                            ExecutionTimeProfiler.INIT, false);
+                    System.out.println("EMPTY_TUPLE_SOURCE finish " + nodeJobSignature + " " + taskId);
+                }
+
                 writer.open();
+
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.resume();
+                }
+
                 if (!appender.append(tb.getFieldEndOffsets(), tb.getByteArray(), 0, tb.getSize())) {
                     throw new IllegalStateException();
                 }
+
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.suspend();
+                }
+
                 appender.flush(writer, true);
                 writer.close();
             }
+
+            @Override
+            public void close() throws HyracksDataException {
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.finish();
+                    OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(
+                            nodeJobSignature,
+                            taskId,
+                            profilerSW.getMessage("EMPTY_TUPLE_SOURCE\t" + ctx.getTaskAttemptId(),
+                                    profilerSW.getStartTimeStamp()), false);
+                    System.out.println("EMPTY_TUPLE_SOURCE end " + nodeJobSignature + " " + taskId);
+                }
+            }
+
         };
     }
-
 }

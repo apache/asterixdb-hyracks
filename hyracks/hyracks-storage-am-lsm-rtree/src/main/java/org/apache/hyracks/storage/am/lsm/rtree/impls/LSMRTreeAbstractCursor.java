@@ -27,6 +27,7 @@ import org.apache.hyracks.storage.am.btree.impls.BTree;
 import org.apache.hyracks.storage.am.btree.impls.BTreeRangeSearchCursor;
 import org.apache.hyracks.storage.am.btree.impls.RangePredicate;
 import org.apache.hyracks.storage.am.common.api.ICursorInitialState;
+import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
 import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexAccessor;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexCursor;
@@ -52,7 +53,7 @@ public abstract class LSMRTreeAbstractCursor implements ITreeIndexCursor {
     protected ITreeIndexCursor[] btreeCursors;
     protected ITreeIndexAccessor[] rtreeAccessors;
     protected ITreeIndexAccessor[] btreeAccessors;
-    private MultiComparator btreeCmp;
+    protected MultiComparator btreeCmp;
     protected int numberOfTrees;
     protected SearchPredicate rtreeSearchPredicate;
     protected RangePredicate btreeRangePredicate;
@@ -61,6 +62,7 @@ public abstract class LSMRTreeAbstractCursor implements ITreeIndexCursor {
     protected ILSMHarness lsmHarness;
     protected boolean foundNext;
     protected final ILSMIndexOperationContext opCtx;
+    protected ISearchOperationCallback searchCallback;
 
     protected List<ILSMComponent> operationalComponents;
 
@@ -80,6 +82,7 @@ public abstract class LSMRTreeAbstractCursor implements ITreeIndexCursor {
 
         operationalComponents = lsmInitialState.getOperationalComponents();
         lsmHarness = lsmInitialState.getLSMHarness();
+        searchCallback = lsmInitialState.getSearchOperationCallback();
         numberOfTrees = operationalComponents.size();
 
         rtreeCursors = new RTreeSearchCursor[numberOfTrees];

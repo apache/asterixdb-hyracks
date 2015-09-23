@@ -22,6 +22,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.storage.am.common.api.IModificationOperationCallback;
 import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
 import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
@@ -44,7 +45,6 @@ public class ExternalRTreeOpContext implements ILSMIndexOperationContext {
     public ExternalRTreeOpContext(IBinaryComparatorFactory[] rtreeCmpFactories,
             IBinaryComparatorFactory[] btreeCmpFactories, ISearchOperationCallback searchCallback,
             int targetIndexVersion) {
-
         this.componentHolder = new LinkedList<ILSMComponent>();
         this.componentsToBeMerged = new LinkedList<ILSMComponent>();
         this.componentsToBeReplicated = new LinkedList<ILSMComponent>();
@@ -122,5 +122,40 @@ public class ExternalRTreeOpContext implements ILSMIndexOperationContext {
     @Override
     public List<ILSMComponent> getComponentsToBeReplicated() {
         return componentsToBeReplicated;
+    }
+
+    @Override
+    public void setUseOperationCallbackProceedReturnResult(boolean useOperationCallbackProceedReturnResult) {
+        // TODO Auto-generated method stub
+    }
+
+    @Override
+    public boolean getUseOperationCallbackProceedReturnResult() {
+        // TODO Auto-generated method stub
+        return false;
+    }
+
+    @Override
+    public void setRecordDescForProceedReturnResult(RecordDescriptor rDescForProceedReturnResult) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public RecordDescriptor getRecordDescForProceedReturnResult() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public void setValuesForProceedReturnResult(byte[] valuesForProceedReturnResult) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public byte[] getValuesForProceedReturnResult() {
+        // TODO Auto-generated method stub
+        return null;
     }
 }

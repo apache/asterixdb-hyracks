@@ -42,21 +42,28 @@ public enum NoOpOperationCallback implements IModificationOperationCallback, ISe
 
     @Override
     public void before(ITupleReference tuple) {
-        // Do nothing.        
+        // Do nothing.
     }
 
     @Override
     public void found(ITupleReference before, ITupleReference after) {
-        // Do nothing.        
+        // Do nothing.
     }
 
     @Override
-    public void cancel(ITupleReference tuple) {
+    public void cancelReconcile(ITupleReference tuple) {
         // Do nothing.
+    }
+
+    @Override
+    public void cancelProceed(ITupleReference tuple) throws HyracksDataException {
+        // Do nothing.
+
     }
 
     @Override
     public void complete(ITupleReference tuple) throws HyracksDataException {
         // Do nothing.
     }
+
 }

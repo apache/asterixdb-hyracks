@@ -21,9 +21,6 @@ package org.apache.hyracks.tests.am.rtree;
 
 import java.io.DataOutput;
 
-import org.junit.Before;
-import org.junit.Test;
-
 import org.apache.hyracks.api.constraints.PartitionConstraintHelper;
 import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
@@ -46,6 +43,8 @@ import org.apache.hyracks.storage.am.common.dataflow.IIndexDataflowHelperFactory
 import org.apache.hyracks.storage.am.common.impls.NoOpOperationCallbackFactory;
 import org.apache.hyracks.storage.am.rtree.dataflow.RTreeSearchOperatorDescriptor;
 import org.apache.hyracks.storage.am.rtree.frames.RTreePolicyType;
+import org.junit.Before;
+import org.junit.Test;
 
 public class RTreeSecondaryIndexInsertOperatorTest extends AbstractRTreeOperatorTest {
 

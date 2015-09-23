@@ -24,13 +24,15 @@ import org.apache.hyracks.api.comm.IFrameTupleAppender;
 import org.apache.hyracks.api.comm.VSizeFrame;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.util.ExecutionTimeProfiler;
+import org.apache.hyracks.api.util.ExecutionTimeStopWatch;
 import org.apache.hyracks.dataflow.common.comm.io.FrameFixedFieldTupleAppender;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
 import org.apache.hyracks.dataflow.common.data.accessors.FrameTupleReference;
 
-public abstract class AbstractOneInputOneOutputOneFieldFramePushRuntime
-        extends AbstractOneInputOneOutputOneFramePushRuntime {
+public abstract class AbstractOneInputOneOutputOneFieldFramePushRuntime extends
+        AbstractOneInputOneOutputOneFramePushRuntime {
 
     @Override
     protected IFrameTupleAppender getTupleAppender() {
@@ -50,10 +52,31 @@ public abstract class AbstractOneInputOneOutputOneFieldFramePushRuntime
     }
 
     protected void appendField(byte[] array, int start, int length) throws HyracksDataException {
-        FrameUtils.appendFieldToWriter(writer, getFieldAppender(), array, start, length);
+        appendField(array, start, length, null);
+    }
+
+    // the same as the above method. Added the StopWatch to measure the execution time
+    protected void appendField(byte[] array, int start, int length, ExecutionTimeStopWatch execTimeProfilerSW)
+            throws HyracksDataException {
+        if (!ExecutionTimeProfiler.PROFILE_MODE || execTimeProfilerSW == null) {
+            FrameUtils.appendFieldToWriter(writer, getFieldAppender(), array, start, length);
+        } else {
+            FrameUtils.appendFieldToWriter(writer, getFieldAppender(), array, start, length, execTimeProfilerSW);
+        }
     }
 
     protected void appendField(IFrameTupleAccessor accessor, int tid, int fid) throws HyracksDataException {
-        FrameUtils.appendFieldToWriter(writer, getFieldAppender(), accessor, tid, fid);
+        appendField(accessor, tid, fid, null);
     }
+
+    // the same as the above method. Added the StopWatch to measure the execution time
+    protected void appendField(IFrameTupleAccessor accessor, int tid, int fid, ExecutionTimeStopWatch execTimeProfilerSW)
+            throws HyracksDataException {
+        if (!ExecutionTimeProfiler.PROFILE_MODE || execTimeProfilerSW == null) {
+            FrameUtils.appendFieldToWriter(writer, getFieldAppender(), accessor, tid, fid);
+        } else {
+            FrameUtils.appendFieldToWriter(writer, getFieldAppender(), accessor, tid, fid, execTimeProfilerSW);
+        }
+    }
+
 }

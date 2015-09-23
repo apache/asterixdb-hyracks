@@ -54,4 +54,12 @@ public interface IIndexOperatorDescriptor extends IActivity {
     public ITupleFilterFactory getTupleFilterFactory();
 
     public ILocalResourceFactoryProvider getLocalResourceFactoryProvider();
+
+    public boolean getUseOpercationCallbackProceedReturnResult();
+
+    public byte[] getValuesForOpercationCallbackProceedReturnResult();
+
+    // During the index-search, only fetch the given number of results.
+    public long getLimitNumberOfResult();
+
 }

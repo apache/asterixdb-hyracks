@@ -33,6 +33,7 @@ public class RangePredicate extends AbstractSearchPredicate {
     protected boolean highKeyInclusive = true;
     protected MultiComparator lowKeyCmp;
     protected MultiComparator highKeyCmp;
+    protected String queryString;
 
     public RangePredicate() {
 
@@ -101,4 +102,10 @@ public class RangePredicate extends AbstractSearchPredicate {
     public boolean isHighKeyInclusive() {
         return highKeyInclusive;
     }
+
+    @Override
+    public String applicableIndexType() {
+        return "BTREE_INDEX";
+    }
+
 }

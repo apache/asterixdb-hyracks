@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang3.mutable.Mutable;
-
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.ListSet;
 import org.apache.hyracks.algebricks.common.utils.Triple;
@@ -60,13 +59,25 @@ public class RemoveUnusedAssignAndAggregateRule implements IAlgebraicRewriteRule
         if (context.checkIfInDontApplySet(this, opRef.getValue())) {
             return false;
         }
-        Set<LogicalVariable> toRemove = new HashSet<LogicalVariable>();
-        collectUnusedAssignedVars((AbstractLogicalOperator) opRef.getValue(), toRemove, true, context);
-        boolean smthToRemove = !toRemove.isEmpty();
-        if (smthToRemove) {
-            removeUnusedAssigns(opRef, toRemove, context);
+        // Keep the variables that are produced by ASSIGN, UNNEST, AGGREGATE, and UNION operators.
+        Set<LogicalVariable> assignedVarSet = new HashSet<LogicalVariable>();
+        // Keep the variables that are used after ASSIGN, UNNEST, AGGREGATE, and UNION operators.
+        Set<LogicalVariable> usedVarSet = new HashSet<LogicalVariable>();
+        collectUnusedAssignedVars((AbstractLogicalOperator) opRef.getValue(), assignedVarSet, usedVarSet, true, context);
+        // Remove the variables used after ASSIGN, UNNEST, AGGREGATE, and UNION operators in the assignedVarSet
+        // before deleting the ASSIGN expressions.
+        Iterator<LogicalVariable> iterator = assignedVarSet.iterator();
+        while (iterator.hasNext()) {
+            LogicalVariable v = iterator.next();
+            if (usedVarSet.contains(v)) {
+                iterator.remove();
+            }
         }
-        return !toRemove.isEmpty();
+        boolean smthToRemove = !assignedVarSet.isEmpty();
+        if (smthToRemove) {
+            removeUnusedAssigns(opRef, assignedVarSet, context);
+        }
+        return !assignedVarSet.isEmpty();
     }
 
     private void removeUnusedAssigns(Mutable<ILogicalOperator> opRef, Set<LogicalVariable> toRemove,
@@ -106,7 +117,7 @@ public class RemoveUnusedAssignAndAggregateRule implements IAlgebraicRewriteRule
                         rootsToBeRemoved.add(r);
                     }
                 }
-                // Makes sure the operator should have at least ONE nested plan even it is empty 
+                // Makes sure the operator should have at least ONE nested plan even it is empty
                 // (because a lot of places uses this assumption,  TODO(yingyib): clean them up).
                 if (nestedPlan.getRoots().size() == rootsToBeRemoved.size() && opWithNest.getNestedPlans().size() > 1) {
                     nestedPlan.getRoots().removeAll(rootsToBeRemoved);
@@ -188,19 +199,21 @@ public class RemoveUnusedAssignAndAggregateRule implements IAlgebraicRewriteRule
         return changed;
     }
 
-    private void collectUnusedAssignedVars(AbstractLogicalOperator op, Set<LogicalVariable> toRemove, boolean first,
-            IOptimizationContext context) throws AlgebricksException {
+    private void collectUnusedAssignedVars(AbstractLogicalOperator op, Set<LogicalVariable> assignedVarSet,
+            Set<LogicalVariable> usedVarSet, boolean first, IOptimizationContext context) throws AlgebricksException {
         if (!first) {
             context.addToDontApplySet(this, op);
         }
         for (Mutable<ILogicalOperator> c : op.getInputs()) {
-            collectUnusedAssignedVars((AbstractLogicalOperator) c.getValue(), toRemove, false, context);
+            collectUnusedAssignedVars((AbstractLogicalOperator) c.getValue(), assignedVarSet, usedVarSet, false,
+                    context);
         }
         if (op.hasNestedPlans()) {
             AbstractOperatorWithNestedPlans opWithNested = (AbstractOperatorWithNestedPlans) op;
             for (ILogicalPlan plan : opWithNested.getNestedPlans()) {
                 for (Mutable<ILogicalOperator> r : plan.getRoots()) {
-                    collectUnusedAssignedVars((AbstractLogicalOperator) r.getValue(), toRemove, false, context);
+                    collectUnusedAssignedVars((AbstractLogicalOperator) r.getValue(), assignedVarSet, usedVarSet,
+                            false, context);
                 }
             }
         }
@@ -208,19 +221,19 @@ public class RemoveUnusedAssignAndAggregateRule implements IAlgebraicRewriteRule
         switch (op.getOperatorTag()) {
             case ASSIGN: {
                 AssignOperator assign = (AssignOperator) op;
-                toRemove.addAll(assign.getVariables());
+                assignedVarSet.addAll(assign.getVariables());
                 break;
             }
             case AGGREGATE: {
                 AggregateOperator agg = (AggregateOperator) op;
-                toRemove.addAll(agg.getVariables());
+                assignedVarSet.addAll(agg.getVariables());
                 break;
             }
             case UNNEST: {
                 UnnestOperator uOp = (UnnestOperator) op;
                 LogicalVariable pVar = uOp.getPositionalVariable();
                 if (pVar != null) {
-                    toRemove.add(pVar);
+                    assignedVarSet.add(pVar);
                 }
                 break;
             }
@@ -228,16 +241,18 @@ public class RemoveUnusedAssignAndAggregateRule implements IAlgebraicRewriteRule
                 UnionAllOperator unionOp = (UnionAllOperator) op;
                 for (Triple<LogicalVariable, LogicalVariable, LogicalVariable> varMapping : unionOp
                         .getVariableMappings()) {
-                    toRemove.add(varMapping.third);
+                    assignedVarSet.add(varMapping.third);
                 }
                 removeUsedVars = false;
                 break;
             }
         }
+
         if (removeUsedVars) {
             List<LogicalVariable> used = new LinkedList<LogicalVariable>();
             VariableUtilities.getUsedVariables(op, used);
-            toRemove.removeAll(used);
+            usedVarSet.addAll(used);
+            //            assignedVarSet.removeAll(used);
         }
     }
 

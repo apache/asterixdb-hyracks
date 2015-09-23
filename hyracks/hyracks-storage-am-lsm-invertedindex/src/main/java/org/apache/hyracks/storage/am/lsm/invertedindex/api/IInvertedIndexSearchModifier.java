@@ -22,6 +22,8 @@ package org.apache.hyracks.storage.am.lsm.invertedindex.api;
 public interface IInvertedIndexSearchModifier {
     public int getOccurrenceThreshold(int numQueryTokens);
 
+    // PrefixLists: inverted list cursors all of their elements will be added - similar to UNION of two inverted list cursors.
+    // SuffixLists: inverted list cursors that their elements will be added only if the element already exists in the merged inverted list cursors.
     public int getNumPrefixLists(int occurrenceThreshold, int numInvLists);
 
     public short getNumTokensLowerBound(short numQueryTokens);

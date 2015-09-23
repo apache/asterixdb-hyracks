@@ -26,7 +26,6 @@ import java.util.List;
 
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableObject;
-
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.Pair;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
@@ -45,7 +44,7 @@ import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 /**
  * Pushes projections through its input operator, provided that operator does
  * not produce the projected variables.
- * 
+ *
  * @author Nicola
  */
 public class PushProjectDownRule implements IAlgebraicRewriteRule {
@@ -87,6 +86,7 @@ public class PushProjectDownRule implements IAlgebraicRewriteRule {
                     || op2.getOperatorTag() == LogicalOperatorTag.NESTEDTUPLESOURCE
                     || op2.getOperatorTag() == LogicalOperatorTag.PROJECT
                     || op2.getOperatorTag() == LogicalOperatorTag.REPLICATE
+                    || op2.getOperatorTag() == LogicalOperatorTag.SPLIT
                     || op2.getOperatorTag() == LogicalOperatorTag.UNIONALL) {
                 return new Pair<Boolean, Boolean>(false, false);
             }

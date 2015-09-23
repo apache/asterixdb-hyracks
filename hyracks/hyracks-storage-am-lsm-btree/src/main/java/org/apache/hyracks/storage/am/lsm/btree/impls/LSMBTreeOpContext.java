@@ -23,6 +23,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.storage.am.btree.api.IBTreeLeafFrame;
 import org.apache.hyracks.storage.am.btree.impls.BTree;
 import org.apache.hyracks.storage.am.btree.impls.BTreeOpContext;
@@ -60,6 +61,9 @@ public final class LSMBTreeOpContext implements ILSMIndexOperationContext {
     public final MultiComparator filterCmp;
     public final PermutingTupleReference filterTuple;
     public ISearchPredicate searchPredicate;
+    public boolean useOperationCallbackProceedReturnResult;
+    public RecordDescriptor rDescForProceedReturnResult;
+    public byte[] valuesForOperationCallbackProceedReturnResult;
 
     public LSMBTreeOpContext(List<ILSMComponent> mutableComponents, ITreeIndexFrameFactory insertLeafFrameFactory,
             ITreeIndexFrameFactory deleteLeafFrameFactory, IModificationOperationCallback modificationCallback,
@@ -110,6 +114,10 @@ public final class LSMBTreeOpContext implements ILSMIndexOperationContext {
             filterCmp = null;
             filterTuple = null;
         }
+
+        this.useOperationCallbackProceedReturnResult = false;
+        this.rDescForProceedReturnResult = null;
+        this.valuesForOperationCallbackProceedReturnResult = null;
     }
 
     @Override
@@ -199,4 +207,34 @@ public final class LSMBTreeOpContext implements ILSMIndexOperationContext {
     public List<ILSMComponent> getComponentsToBeReplicated() {
         return componentsToBeReplicated;
     }
+
+    public void setUseOperationCallbackProceedReturnResult(boolean useOperationCallbackProceedReturnResult) {
+        this.useOperationCallbackProceedReturnResult = useOperationCallbackProceedReturnResult;
+    }
+
+    @Override
+    public void setRecordDescForProceedReturnResult(RecordDescriptor rDescForProceedReturnResult) {
+        this.rDescForProceedReturnResult = rDescForProceedReturnResult;
+    }
+
+    @Override
+    public boolean getUseOperationCallbackProceedReturnResult() {
+        return useOperationCallbackProceedReturnResult;
+    }
+
+    @Override
+    public RecordDescriptor getRecordDescForProceedReturnResult() {
+        return rDescForProceedReturnResult;
+    }
+
+    @Override
+    public void setValuesForProceedReturnResult(byte[] valuesForProceedReturnResult) {
+        this.valuesForOperationCallbackProceedReturnResult = valuesForProceedReturnResult;
+    }
+
+    @Override
+    public byte[] getValuesForProceedReturnResult() {
+        return valuesForOperationCallbackProceedReturnResult;
+    }
+
 }

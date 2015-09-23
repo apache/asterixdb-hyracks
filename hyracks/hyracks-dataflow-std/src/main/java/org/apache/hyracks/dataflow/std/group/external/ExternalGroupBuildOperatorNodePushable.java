@@ -28,6 +28,7 @@ import org.apache.hyracks.api.dataflow.value.INormalizedKeyComputerFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
+import org.apache.hyracks.api.util.ExecutionTimeStopWatch;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.io.RunFileReader;
 import org.apache.hyracks.dataflow.common.io.RunFileWriter;
@@ -50,6 +51,11 @@ class ExternalGroupBuildOperatorNodePushable extends AbstractUnaryInputSinkOpera
     private final FrameTupleAccessor accessor;
 
     private ExternalGroupState state;
+
+    // For Experiment Profiler
+    private ExecutionTimeStopWatch profilerSW;
+    private String nodeJobSignature;
+    private String taskId;
 
     ExternalGroupBuildOperatorNodePushable(IHyracksTaskContext ctx, Object stateId, int[] keyFields, int framesLimit,
             IBinaryComparatorFactory[] comparatorFactories, INormalizedKeyComputerFactory firstNormalizerFactory,

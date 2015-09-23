@@ -33,6 +33,9 @@ import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.dataflow.value.INullWriter;
 import org.apache.hyracks.api.dataflow.value.INullWriterFactory;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.util.ExecutionTimeProfiler;
+import org.apache.hyracks.api.util.ExecutionTimeStopWatch;
+import org.apache.hyracks.api.util.OperatorExecutionTimeProfiler;
 import org.apache.hyracks.data.std.api.IPointable;
 import org.apache.hyracks.data.std.primitive.VoidPointable;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
@@ -53,7 +56,8 @@ public class StreamSelectRuntimeFactory extends AbstractOneInputOneOutputRuntime
 
     /**
      * @param cond
-     * @param projectionList               if projectionList is null, then no projection is performed
+     * @param projectionList
+     *            if projectionList is null, then no projection is performed
      * @param retainNull
      * @param nullPlaceholderVariableIndex
      * @param nullWriterFactory
@@ -84,8 +88,31 @@ public class StreamSelectRuntimeFactory extends AbstractOneInputOneOutputRuntime
             private INullWriter nullWriter = null;
             private ArrayTupleBuilder nullTupleBuilder = null;
 
+            // Added to measure the execution time when the profiler setting is enabled
+            private ExecutionTimeStopWatch profilerSW;
+            private String nodeJobSignature;
+            private String taskId;
+
             @Override
             public void open() throws HyracksDataException {
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW = new ExecutionTimeStopWatch();
+                    profilerSW.start();
+
+                    // The key of this job: nodeId + JobId + Joblet hash code
+                    nodeJobSignature = ctx.getJobletContext().getApplicationContext().getNodeId() + "_"
+                            + ctx.getJobletContext().getJobId() + "_" + ctx.getJobletContext().hashCode();
+
+                    // taskId: partition + taskId + started time
+                    taskId = ctx.getTaskAttemptId() + this.toString() + profilerSW.getStartTimeStamp();
+
+                    // Initialize the counter for this runtime instance
+                    OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId,
+                            ExecutionTimeProfiler.INIT, false);
+                    System.out.println("STREAM_SELECT open() " + nodeJobSignature + " " + taskId);
+                }
+
                 if (eval == null) {
                     initAccessAppendFieldRef(ctx);
                     try {
@@ -108,6 +135,11 @@ public class StreamSelectRuntimeFactory extends AbstractOneInputOneOutputRuntime
 
             @Override
             public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.resume();
+                }
+
                 tAccess.reset(buffer);
                 int nTuple = tAccess.getTupleCount();
                 for (int t = 0; t < nTuple; t++) {
@@ -119,23 +151,68 @@ public class StreamSelectRuntimeFactory extends AbstractOneInputOneOutputRuntime
                     }
                     if (bbi.getBooleanValue(p.getByteArray(), p.getStartOffset(), p.getLength())) {
                         if (projectionList != null) {
-                            appendProjectionToFrame(t, projectionList);
+                            if (!ExecutionTimeProfiler.PROFILE_MODE) {
+                                appendProjectionToFrame(t, projectionList);
+                            } else {
+                                // Added to measure the execution time when the profiler setting is enabled
+                                appendProjectionToFrame(t, projectionList, profilerSW);
+                            }
                         } else {
-                            appendTupleToFrame(t);
+                            if (!ExecutionTimeProfiler.PROFILE_MODE) {
+                                appendTupleToFrame(t);
+                            } else {
+                                // Added to measure the execution time when the profiler setting is enabled
+                                appendTupleToFrame(t, profilerSW);
+                            }
                         }
                     } else {
                         if (retainNull) {
                             for (int i = 0; i < tRef.getFieldCount(); i++) {
                                 if (i == nullPlaceholderVariableIndex) {
-                                    appendField(nullTupleBuilder.getByteArray(), 0, nullTupleBuilder.getSize());
+                                    if (!ExecutionTimeProfiler.PROFILE_MODE) {
+                                        appendField(nullTupleBuilder.getByteArray(), 0, nullTupleBuilder.getSize());
+                                    } else {
+                                        appendField(nullTupleBuilder.getByteArray(), 0, nullTupleBuilder.getSize(),
+                                                profilerSW);
+                                    }
                                 } else {
-                                    appendField(tAccess, t, i);
+                                    if (!ExecutionTimeProfiler.PROFILE_MODE) {
+                                        appendField(tAccess, t, i);
+                                    } else {
+                                        appendField(tAccess, t, i, profilerSW);
+                                    }
                                 }
                             }
                         }
                     }
                 }
+
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.suspend();
+                }
             }
+
+            @Override
+            public void close() throws HyracksDataException {
+                if (!ExecutionTimeProfiler.PROFILE_MODE) {
+                    flushIfNotFailed();
+                } else {
+                    flushIfNotFailed(profilerSW);
+                }
+                writer.close();
+
+                // Added to measure the execution time when the profiler setting is enabled
+                if (ExecutionTimeProfiler.PROFILE_MODE) {
+                    profilerSW.finish();
+                    OperatorExecutionTimeProfiler.INSTANCE.executionTimeProfiler.add(nodeJobSignature, taskId,
+                            profilerSW.getMessage("STREAM_SELECT\t" + ctx.getTaskAttemptId() + "\t" + this.toString(),
+                                    profilerSW.getStartTimeStamp()), false);
+                    System.out.println("STREAM_SELECT close() " + nodeJobSignature + " " + taskId);
+                }
+
+            }
+
         };
     }
 

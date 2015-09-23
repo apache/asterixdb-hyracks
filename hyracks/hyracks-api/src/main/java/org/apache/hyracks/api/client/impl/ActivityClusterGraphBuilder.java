@@ -28,8 +28,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.json.JSONException;
-
 import org.apache.hyracks.api.dataflow.ActivityId;
 import org.apache.hyracks.api.dataflow.IActivity;
 import org.apache.hyracks.api.dataflow.IConnectorDescriptor;
@@ -38,6 +36,7 @@ import org.apache.hyracks.api.job.ActivityClusterGraph;
 import org.apache.hyracks.api.job.ActivityClusterId;
 import org.apache.hyracks.api.job.JobActivityGraph;
 import org.apache.hyracks.api.job.JobId;
+import org.json.JSONException;
 
 public class ActivityClusterGraphBuilder {
     private static final Logger LOGGER = Logger.getLogger(ActivityClusterGraphBuilder.class.getName());
@@ -53,6 +52,7 @@ public class ActivityClusterGraphBuilder {
                     for (IConnectorDescriptor conn : inputList) {
                         ActivityId inTask = jag.getProducerActivity(conn.getConnectorId());
                         if (!eqSet.contains(inTask)) {
+                            //                            System.out.println("output <<--- input found.");
                             return Pair.<ActivityId, ActivityId> of(t, inTask);
                         }
                     }
@@ -62,6 +62,7 @@ public class ActivityClusterGraphBuilder {
                     for (IConnectorDescriptor conn : outputList) {
                         ActivityId outTask = jag.getConsumerActivity(conn.getConnectorId());
                         if (!eqSet.contains(outTask)) {
+                            //                            System.out.println("input --> output found.");
                             return Pair.<ActivityId, ActivityId> of(t, outTask);
                         }
                     }
@@ -89,7 +90,14 @@ public class ActivityClusterGraphBuilder {
             changed = false;
             Pair<ActivityId, ActivityId> pair = findMergePair(jag, stages);
             if (pair != null) {
+                //                System.out.println("inferActivityClusters - stages: " + stages + "\npair: " + pair.getLeft() + " "
+                //                        + jag.getActivityMap().get(pair.getLeft()) + " <<---->> " + pair.getRight() + " "
+                //                        + jag.getActivityMap().get(pair.getRight()));
+            }
+            if (pair != null) {
                 merge(stageMap, stages, pair.getLeft(), pair.getRight());
+                //                System.out
+                //                        .println("inferActivityClusters - stageMap: " + stageMap + "\n" + "stages:" + stages + "\n\n");
                 changed = true;
             }
         }
@@ -101,13 +109,18 @@ public class ActivityClusterGraphBuilder {
         List<ActivityCluster> acList = new ArrayList<ActivityCluster>();
         for (Set<ActivityId> stage : stages) {
             ActivityCluster ac = new ActivityCluster(acg, new ActivityClusterId(jobId, acCounter++));
+            //            System.out.println("new AC:" + ac);
             acList.add(ac);
             for (ActivityId aid : stage) {
                 IActivity activity = activityNodeMap.get(aid);
                 ac.addActivity(activity);
+                //                System.out.println("activity:" + activity + " added.");
                 acMap.put(aid, ac);
             }
+            //            System.out.println("\n");
         }
+
+        //        System.out.println("The number of AC: " + acList.size() + "\n");
 
         for (Set<ActivityId> stage : stages) {
             for (ActivityId aid : stage) {
@@ -116,15 +129,19 @@ public class ActivityClusterGraphBuilder {
                 List<IConnectorDescriptor> aOutputs = jag.getActivityOutputMap().get(aid);
                 if (aOutputs == null || aOutputs.isEmpty()) {
                     ac.addRoot(activity);
+                    //                    System.out.println("ac:" + ac + "\naddRoot: " + activity + "\n");
                 } else {
                     int nActivityOutputs = aOutputs.size();
                     for (int i = 0; i < nActivityOutputs; ++i) {
                         IConnectorDescriptor conn = aOutputs.get(i);
                         ac.addConnector(conn);
+                        //                        System.out.println("connector added: " + conn);
                         Pair<Pair<IActivity, Integer>, Pair<IActivity, Integer>> pcPair = jag.getConnectorActivityMap()
                                 .get(conn.getConnectorId());
                         ac.connect(conn, activity, i, pcPair.getRight().getLeft(), pcPair.getRight().getRight(), jag
                                 .getConnectorRecordDescriptorMap().get(conn.getConnectorId()));
+                        //                        System.out.println("connected: pro: " + activity + " port: " + i + " cons: "
+                        //                                + pcPair.getRight().getLeft() + " port: " + pcPair.getRight().getRight() + "\n");
                     }
                 }
             }
@@ -140,11 +157,18 @@ public class ActivityClusterGraphBuilder {
                 if (blockerTasks != null) {
                     for (ActivityId bt : blockerTasks) {
                         blockerStages.add(acMap.get(bt));
+                        //                        System.out.println("ac: " + s + "\nblockerStages: " + blockerStages + " block Activity:" + bt
+                        //                                + "\n");
                     }
                 }
             }
             for (ActivityCluster bs : blockerStages) {
                 s.getDependencies().add(bs);
+                if (s.equals(bs)) {
+                    throw new IllegalStateException(
+                            "ActivityClusterGraphBuilder.inferActivityClusters: an activity cluster cannot be registered as its dependency. The plan needs to be revised.");
+                }
+                //                System.out.println("ac: " + s + " dependency added: " + bs);
             }
         }
         acg.addActivityClusters(acList);

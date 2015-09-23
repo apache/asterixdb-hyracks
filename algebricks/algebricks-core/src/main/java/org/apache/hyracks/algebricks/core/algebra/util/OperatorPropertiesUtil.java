@@ -23,7 +23,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.commons.lang3.mutable.Mutable;
-
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.ListSet;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalExpression;
@@ -66,7 +65,7 @@ public class OperatorPropertiesUtil {
     /**
      * Adds the free variables of the plan rooted at that operator to the
      * collection provided.
-     * 
+     *
      * @param op
      * @param vars
      *            - The collection to which the free variables will be added.
@@ -107,7 +106,7 @@ public class OperatorPropertiesUtil {
     /**
      * Adds the free variables of the operator path from
      * op to dest, where dest is a direct/indirect input operator of op in the query plan.
-     * 
+     *
      * @param op
      *            , the start operator.
      * @param dest
@@ -165,7 +164,7 @@ public class OperatorPropertiesUtil {
 
     /***
      * Recursively checks if the dest operator is in the path of a nested plan
-     * 
+     *
      * @param op
      * @param dest
      * @return

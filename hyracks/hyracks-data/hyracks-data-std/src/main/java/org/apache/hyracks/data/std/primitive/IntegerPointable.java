@@ -56,6 +56,16 @@ public final class IntegerPointable extends AbstractPointable implements IHashab
     };
 
     public static int getInteger(byte[] bytes, int start) {
+
+        //        System.out
+        //                .println("IntegerPointable.getInteger() bytes.length:"
+        //                        + bytes.length
+        //                        + " start:"
+        //                        + start
+        //                        + " getInteger():"
+        //                        + (((bytes[start] & 0xff) << 24) + ((bytes[start + 1] & 0xff) << 16)
+        //                                + ((bytes[start + 2] & 0xff) << 8) + ((bytes[start + 3] & 0xff) << 0)));
+
         return ((bytes[start] & 0xff) << 24) + ((bytes[start + 1] & 0xff) << 16) + ((bytes[start + 2] & 0xff) << 8)
                 + ((bytes[start + 3] & 0xff) << 0);
     }

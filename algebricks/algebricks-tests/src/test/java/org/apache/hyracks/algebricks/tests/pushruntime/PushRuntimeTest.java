@@ -25,10 +25,6 @@ import java.io.IOException;
 
 import junit.framework.Assert;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import org.apache.hyracks.algebricks.data.IPrinterFactory;
 import org.apache.hyracks.algebricks.data.impl.BinaryBooleanInspectorImpl;
 import org.apache.hyracks.algebricks.data.impl.BinaryIntegerInspectorImpl;
@@ -96,8 +92,11 @@ import org.apache.hyracks.dataflow.std.file.LineFileWriteOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.hash.HashGroupOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupOperatorDescriptor;
-import org.apache.hyracks.dataflow.std.misc.SplitOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.misc.ReplicateOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.sort.InMemorySortOperatorDescriptor;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class PushRuntimeTest {
 
@@ -671,7 +670,7 @@ public class PushRuntimeTest {
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, scanOp,
                 new String[] { AlgebricksHyracksIntegrationUtil.NC1_ID });
 
-        SplitOperatorDescriptor splitOp = new SplitOperatorDescriptor(spec, stringRec, outputArity);
+        ReplicateOperatorDescriptor splitOp = new ReplicateOperatorDescriptor(spec, stringRec, outputArity);
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, splitOp,
                 new String[] { AlgebricksHyracksIntegrationUtil.NC1_ID });

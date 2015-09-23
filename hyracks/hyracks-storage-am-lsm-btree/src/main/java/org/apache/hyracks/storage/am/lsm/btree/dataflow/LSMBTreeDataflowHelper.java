@@ -74,4 +74,10 @@ public class LSMBTreeDataflowHelper extends AbstractLSMIndexDataflowHelper {
                 ioOpCallbackFactory.createIOOperationCallback(), needKeyDupCheck, filterTypeTraits, filterCmpFactories,
                 btreeFields, filterFields, durable);
     }
+
+    @Override
+    public boolean needKeyDuplicateCheck() {
+        return needKeyDupCheck;
+    }
+
 }

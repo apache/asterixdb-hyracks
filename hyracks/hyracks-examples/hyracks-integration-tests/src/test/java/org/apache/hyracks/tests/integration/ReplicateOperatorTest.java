@@ -23,8 +23,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 
-import org.junit.Assert;
-import org.junit.Test;
+import junit.framework.Assert;
 
 import org.apache.hyracks.api.constraints.PartitionConstraintHelper;
 import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
@@ -40,11 +39,12 @@ import org.apache.hyracks.dataflow.std.file.ConstantFileSplitProvider;
 import org.apache.hyracks.dataflow.std.file.DelimitedDataTupleParserFactory;
 import org.apache.hyracks.dataflow.std.file.FileScanOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.file.FileSplit;
-import org.apache.hyracks.dataflow.std.misc.SplitOperatorDescriptor;
+import org.apache.hyracks.dataflow.std.misc.ReplicateOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.result.ResultWriterOperatorDescriptor;
 import org.apache.hyracks.tests.util.ResultSerializerFactoryProvider;
+import org.junit.Test;
 
-public class SplitOperatorTest extends AbstractIntegrationTest {
+public class ReplicateOperatorTest extends AbstractIntegrationTest {
 
     public void compareFiles(String fileNameA, String fileNameB) throws IOException {
         BufferedReader fileA = new BufferedReader(new FileReader(fileNameA));
@@ -86,7 +86,7 @@ public class SplitOperatorTest extends AbstractIntegrationTest {
                 inputSplits), stringParser, stringRec);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, scanOp, locations);
 
-        SplitOperatorDescriptor splitOp = new SplitOperatorDescriptor(spec, stringRec, outputArity);
+        ReplicateOperatorDescriptor splitOp = new ReplicateOperatorDescriptor(spec, stringRec, outputArity);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, splitOp, locations);
 
         IOperatorDescriptor outputOp[] = new IOperatorDescriptor[outputFile.length];

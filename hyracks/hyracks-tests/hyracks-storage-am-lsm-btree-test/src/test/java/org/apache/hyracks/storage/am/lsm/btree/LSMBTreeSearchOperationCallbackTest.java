@@ -187,7 +187,7 @@ public class LSMBTreeSearchOperationCallbackTest extends AbstractSearchOperation
             }
 
             @Override
-            public void cancel(ITupleReference tuple) throws HyracksDataException {
+            public void cancelReconcile(ITupleReference tuple) throws HyracksDataException {
                 boolean found = false;
                 for (int i : deleteSet) {
                     TupleUtils.createIntegerTuple(expectedTupleToBeCanceledBuilder, expectedTupleToBeCanceled, i);
@@ -205,6 +205,12 @@ public class LSMBTreeSearchOperationCallbackTest extends AbstractSearchOperation
                 expectedTupleToBeLockedValue++;
                 TupleUtils.createIntegerTuple(expectedTupleToBeLockedBuilder, expectedTupleToBeLocked,
                         expectedTupleToBeLockedValue);
+            }
+
+            @Override
+            public void cancelProceed(ITupleReference tuple) throws HyracksDataException {
+                // TODO Auto-generated method stub
+
             }
 
         }

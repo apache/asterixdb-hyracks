@@ -26,6 +26,7 @@ import java.util.Set;
 
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.ILinearizeComparatorFactory;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.data.std.primitive.IntegerPointable;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
@@ -123,7 +124,7 @@ public class LSMRTree extends AbstractLSMRTree {
     /**
      * Opens LSMRTree, cleaning up invalid files from base dir, and registering
      * all valid files as on-disk RTrees and BTrees.
-     * 
+     *
      * @param fileReference
      *            Dummy file id.
      * @throws HyracksDataException
@@ -435,6 +436,21 @@ public class LSMRTree extends AbstractLSMRTree {
         @Override
         public ITreeIndexCursor createSearchCursor(boolean exclusive) {
             return new LSMRTreeSearchCursor(ctx, buddyBTreeFields);
+        }
+
+        @Override
+        public IIndexCursor createSearchCursor(boolean exclusive, boolean useOperationCallbackProceedReturnResult,
+                RecordDescriptor rDesc, byte[] valuesForOperationCallbackProceedReturnResult) {
+            // This method is only required for the LSM based indexes
+            if (ctx instanceof LSMRTreeOpContext) {
+                LSMRTreeOpContext concreteCtx = (LSMRTreeOpContext) ctx;
+                concreteCtx.setUseOperationCallbackProceedReturnResult(useOperationCallbackProceedReturnResult);
+                concreteCtx.setRecordDescForProceedReturnResult(rDesc);
+                concreteCtx.setValuesForProceedReturnResult(valuesForOperationCallbackProceedReturnResult);
+                return new LSMRTreeSearchCursor(concreteCtx, buddyBTreeFields);
+            } else {
+                return new LSMRTreeSearchCursor(ctx, buddyBTreeFields);
+            }
         }
 
         @Override

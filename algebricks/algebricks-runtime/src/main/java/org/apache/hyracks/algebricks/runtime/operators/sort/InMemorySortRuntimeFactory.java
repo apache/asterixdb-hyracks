@@ -31,8 +31,8 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.std.sort.FrameSorterMergeSort;
 import org.apache.hyracks.dataflow.std.sort.buffermanager.FrameFreeSlotLastFit;
 import org.apache.hyracks.dataflow.std.sort.buffermanager.IFrameBufferManager;
-import org.apache.hyracks.dataflow.std.sort.buffermanager.VariableFramePool;
 import org.apache.hyracks.dataflow.std.sort.buffermanager.VariableFrameMemoryManager;
+import org.apache.hyracks.dataflow.std.sort.buffermanager.VariableFramePool;
 
 public class InMemorySortRuntimeFactory extends AbstractOneInputOneOutputRuntimeFactory {
 
@@ -65,9 +65,8 @@ public class InMemorySortRuntimeFactory extends AbstractOneInputOneOutputRuntime
             @Override
             public void open() throws HyracksDataException {
                 if (frameSorter == null) {
-                    IFrameBufferManager manager = new VariableFrameMemoryManager(
-                            new VariableFramePool(ctx, VariableFramePool.UNLIMITED_MEMORY),
-                            new FrameFreeSlotLastFit());
+                    IFrameBufferManager manager = new VariableFrameMemoryManager(new VariableFramePool(ctx,
+                            VariableFramePool.UNLIMITED_MEMORY), new FrameFreeSlotLastFit());
                     frameSorter = new FrameSorterMergeSort(ctx, manager, sortFields, firstKeyNormalizerFactory,
                             comparatorFactories, outputRecordDesc);
                 }

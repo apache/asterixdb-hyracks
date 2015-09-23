@@ -25,6 +25,8 @@ import org.apache.hyracks.api.comm.IFrameTupleAppender;
 import org.apache.hyracks.api.comm.VSizeFrame;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.util.ExecutionTimeProfiler;
+import org.apache.hyracks.api.util.ExecutionTimeStopWatch;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAppender;
@@ -56,14 +58,39 @@ public abstract class AbstractOneInputOneOutputOneFramePushRuntime extends Abstr
     }
 
     protected void flushAndReset() throws HyracksDataException {
+        flushAndReset(null);
+        //        if (appender.getTupleCount() > 0) {
+        //            appender.flush(writer, true);
+        //        }
+    }
+
+    // the same as the flushAndReset() in the above. Added StopWatch to measure the execution time
+    protected void flushAndReset(ExecutionTimeStopWatch execTimeProfilerSW) throws HyracksDataException {
         if (appender.getTupleCount() > 0) {
-            appender.flush(writer, true);
+            if (!ExecutionTimeProfiler.PROFILE_MODE || execTimeProfilerSW == null) {
+                appender.flush(writer, true);
+            } else {
+                execTimeProfilerSW.suspend();
+                appender.flush(writer, true);
+                execTimeProfilerSW.resume();
+            }
         }
     }
 
     protected void flushIfNotFailed() throws HyracksDataException {
         if (!failed) {
-            flushAndReset();
+            flushAndReset(null);
+        }
+    }
+
+    // the same as the above.
+    protected void flushIfNotFailed(ExecutionTimeStopWatch execTimeProfilerSW) throws HyracksDataException {
+        if (!failed) {
+            if (!ExecutionTimeProfiler.PROFILE_MODE || execTimeProfilerSW == null) {
+                flushAndReset(null);
+            } else {
+                flushAndReset(execTimeProfilerSW);
+            }
         }
     }
 
@@ -72,35 +99,82 @@ public abstract class AbstractOneInputOneOutputOneFramePushRuntime extends Abstr
     }
 
     protected void appendToFrameFromTupleBuilder(ArrayTupleBuilder tb) throws HyracksDataException {
-        appendToFrameFromTupleBuilder(tb, false);
+        appendToFrameFromTupleBuilder(tb, false, null);
     }
 
     protected void appendToFrameFromTupleBuilder(ArrayTupleBuilder tb, boolean flushFrame) throws HyracksDataException {
-        FrameUtils.appendToWriter(writer, getTupleAppender(), tb.getFieldEndOffsets(), tb.getByteArray(), 0,
-                tb.getSize());
-        if (flushFrame) {
-            flushAndReset();
+        appendToFrameFromTupleBuilder(tb, flushFrame, null);
+    }
+
+    // the same as the appendToFrameFromTupleBuilder() in the above. Added StopWatch to measure the execution time
+    protected void appendToFrameFromTupleBuilder(ArrayTupleBuilder tb, boolean flushFrame,
+            ExecutionTimeStopWatch execTimeProfilerSW) throws HyracksDataException {
+        if (!ExecutionTimeProfiler.PROFILE_MODE || execTimeProfilerSW == null) {
+            FrameUtils.appendToWriter(writer, getTupleAppender(), tb.getFieldEndOffsets(), tb.getByteArray(), 0,
+                    tb.getSize());
+            if (flushFrame) {
+                flushAndReset(null);
+            }
+        } else {
+            FrameUtils.appendToWriter(writer, getTupleAppender(), tb.getFieldEndOffsets(), tb.getByteArray(), 0,
+                    tb.getSize(), execTimeProfilerSW);
+            if (flushFrame) {
+                flushAndReset(execTimeProfilerSW);
+            }
         }
     }
 
     protected void appendProjectionToFrame(int tIndex, int[] projectionList) throws HyracksDataException {
-        appendProjectionToFrame(tIndex, projectionList, false);
+        appendProjectionToFrame(tIndex, projectionList, false, null);
+    }
+
+    // the same as the appendProjectionToFrame() in the above. Added StopWatch to measure the execution time
+    protected void appendProjectionToFrame(int tIndex, int[] projectionList, ExecutionTimeStopWatch execTimeProfilerSW)
+            throws HyracksDataException {
+        appendProjectionToFrame(tIndex, projectionList, false, execTimeProfilerSW);
     }
 
     protected void appendProjectionToFrame(int tIndex, int[] projectionList, boolean flushFrame)
             throws HyracksDataException {
-        FrameUtils.appendProjectionToWriter(writer, getTupleAppender(), tAccess, tIndex, projectionList);
-        if (flushFrame) {
-            flushAndReset();
+        appendProjectionToFrame(tIndex, projectionList, flushFrame, null);
+    }
+
+    // the same as the appendProjectionToFrame() in the above. Added StopWatch to measure the execution time
+    protected void appendProjectionToFrame(int tIndex, int[] projectionList, boolean flushFrame,
+            ExecutionTimeStopWatch execTimeProfilerSW) throws HyracksDataException {
+        if (!ExecutionTimeProfiler.PROFILE_MODE || execTimeProfilerSW == null) {
+            FrameUtils.appendProjectionToWriter(writer, getTupleAppender(), tAccess, tIndex, projectionList, null);
+            if (flushFrame) {
+                flushAndReset(null);
+            }
+        } else {
+            FrameUtils.appendProjectionToWriter(writer, getTupleAppender(), tAccess, tIndex, projectionList,
+                    execTimeProfilerSW);
+            if (flushFrame) {
+                flushAndReset(execTimeProfilerSW);
+            }
         }
     }
 
     protected void appendTupleToFrame(int tIndex) throws HyracksDataException {
-        FrameUtils.appendToWriter(writer, getTupleAppender(), tAccess, tIndex);
+        appendTupleToFrame(tIndex, null);
+    }
+
+    // the same as the appendTupleToFrame() in the above. Added StopWatch to measure the execution time
+    protected void appendTupleToFrame(int tIndex, ExecutionTimeStopWatch execTimeProfilerSW)
+            throws HyracksDataException {
+        FrameUtils.appendToWriter(writer, getTupleAppender(), tAccess, tIndex, execTimeProfilerSW);
     }
 
     protected void appendConcat(IFrameTupleAccessor accessor0, int tIndex0, IFrameTupleAccessor accessor1, int tIndex1)
             throws HyracksDataException {
-        FrameUtils.appendConcatToWriter(writer, getTupleAppender(), accessor0, tIndex0, accessor1, tIndex1);
+        appendConcat(accessor0, tIndex0, accessor1, tIndex1, null);
+    }
+
+    // the same as the appendConcat() in the above. Added StopWatch to measure the execution time
+    protected void appendConcat(IFrameTupleAccessor accessor0, int tIndex0, IFrameTupleAccessor accessor1, int tIndex1,
+            ExecutionTimeStopWatch execTimeProfilerSW) throws HyracksDataException {
+        FrameUtils.appendConcatToWriter(writer, getTupleAppender(), accessor0, tIndex0, accessor1, tIndex1,
+                execTimeProfilerSW);
     }
 }

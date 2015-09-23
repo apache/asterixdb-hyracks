@@ -20,6 +20,7 @@
 package org.apache.hyracks.storage.am.lsm.invertedindex.inmemory;
 
 import org.apache.hyracks.api.context.IHyracksCommonContext;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.btree.api.IBTreeLeafFrame;
@@ -74,6 +75,13 @@ public class InMemoryInvertedIndexAccessor implements IInvertedIndexAccessor {
     }
 
     @Override
+    public IIndexCursor createSearchCursor(boolean exclusive, boolean useOperationCallbackProceedReturnResult,
+            RecordDescriptor rDesc, byte[] valuesForOperationCallbackProceedReturnResult) {
+        return new OnDiskInvertedIndexSearchCursor(searcher, index.getInvListTypeTraits().length,
+                useOperationCallbackProceedReturnResult, rDesc, valuesForOperationCallbackProceedReturnResult);
+    }
+
+    @Override
     public void search(IIndexCursor cursor, ISearchPredicate searchPred) throws HyracksDataException, IndexException {
         searcher.search((OnDiskInvertedIndexSearchCursor) cursor, (InvertedIndexSearchPredicate) searchPred, opCtx);
     }
@@ -118,4 +126,5 @@ public class InMemoryInvertedIndexAccessor implements IInvertedIndexAccessor {
     protected IInvertedIndexSearcher createSearcher() throws HyracksDataException {
         return new TOccurrenceSearcher(hyracksCtx, index);
     }
+
 }

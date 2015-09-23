@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.apache.commons.lang3.mutable.Mutable;
-
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.IHyracksJobBuilder;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
@@ -33,6 +32,7 @@ import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.IOperatorSchema;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.ReplicateOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.SplitOperator;
 import org.apache.hyracks.api.job.IJobletEventListenerFactory;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.api.job.JobSpecification;
@@ -100,7 +100,7 @@ public class PlanCompiler {
 
     private void reviseEdges(IHyracksJobBuilder builder) {
         /**
-         * revise the edges for the case of replicate operator
+         * revise the edges for the case of replicate or split operator
          */
         for (Entry<Mutable<ILogicalOperator>, List<Mutable<ILogicalOperator>>> entry : operatorVisitedToParents
                 .entrySet()) {
@@ -109,6 +109,21 @@ public class PlanCompiler {
             if (parents.size() > 1) {
                 if (child.getValue().getOperatorTag() == LogicalOperatorTag.REPLICATE) {
                     ReplicateOperator rop = (ReplicateOperator) child.getValue();
+                    if (rop.isBlocker()) {
+                        // make the order of the graph edges consistent with the order of rop's outputs
+                        List<Mutable<ILogicalOperator>> outputs = rop.getOutputs();
+                        for (Mutable<ILogicalOperator> parent : parents) {
+                            builder.contributeGraphEdge(child.getValue(), outputs.indexOf(parent), parent.getValue(), 0);
+                        }
+                    } else {
+                        int i = 0;
+                        for (Mutable<ILogicalOperator> parent : parents) {
+                            builder.contributeGraphEdge(child.getValue(), i, parent.getValue(), 0);
+                            i++;
+                        }
+                    }
+                } else if (child.getValue().getOperatorTag() == LogicalOperatorTag.SPLIT) {
+                    SplitOperator rop = (SplitOperator) child.getValue();
                     if (rop.isBlocker()) {
                         // make the order of the graph edges consistent with the order of rop's outputs
                         List<Mutable<ILogicalOperator>> outputs = rop.getOutputs();

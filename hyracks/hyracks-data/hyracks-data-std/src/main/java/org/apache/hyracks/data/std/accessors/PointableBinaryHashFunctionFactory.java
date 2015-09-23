@@ -21,6 +21,7 @@ package org.apache.hyracks.data.std.accessors;
 import org.apache.hyracks.api.dataflow.value.IBinaryHashFunction;
 import org.apache.hyracks.api.dataflow.value.IBinaryHashFunctionFactory;
 import org.apache.hyracks.data.std.api.IHashable;
+import org.apache.hyracks.data.std.api.IHashableForStringWithoutLengthByte;
 import org.apache.hyracks.data.std.api.IPointable;
 import org.apache.hyracks.data.std.api.IPointableFactory;
 
@@ -45,6 +46,19 @@ public class PointableBinaryHashFunctionFactory implements IBinaryHashFunctionFa
             public int hash(byte[] bytes, int offset, int length) {
                 p.set(bytes, offset, length);
                 return ((IHashable) p).hash();
+            }
+        };
+    }
+
+    // If a string doesn't have the length [2 byte] in the beginning and
+    // the length is passed by the parameter
+    public IBinaryHashFunction createBinaryHashWithoutLengthByteFunction() {
+        final IPointable p = pf.createPointable();
+        return new IBinaryHashFunction() {
+            @Override
+            public int hash(byte[] bytes, int offset, int length) {
+                p.set(bytes, offset, length);
+                return ((IHashableForStringWithoutLengthByte) p).hash(length);
             }
         };
     }

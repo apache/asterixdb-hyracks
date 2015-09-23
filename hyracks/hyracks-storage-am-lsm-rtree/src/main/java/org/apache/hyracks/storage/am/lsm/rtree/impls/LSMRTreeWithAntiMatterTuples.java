@@ -26,6 +26,7 @@ import java.util.Set;
 
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.ILinearizeComparatorFactory;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.btree.impls.BTreeRangeSearchCursor;
@@ -332,6 +333,13 @@ public class LSMRTreeWithAntiMatterTuples extends AbstractLSMRTree {
         @Override
         public ITreeIndexCursor createSearchCursor(boolean exclusive) {
             return new LSMRTreeWithAntiMatterTuplesSearchCursor(ctx);
+        }
+
+        @Override
+        public ITreeIndexCursor createSearchCursor(boolean exclusive, boolean useOperationCallbackProceedReturnResult,
+                RecordDescriptor rDesc, byte[] valuesForOperationCallbackProceedReturnResult) {
+            // This method is only required for the LSM based indexes
+            return null;
         }
 
         public MultiComparator getMultiComparator() {

@@ -21,9 +21,6 @@ package org.apache.hyracks.tests.am.btree;
 
 import java.io.DataOutput;
 
-import org.junit.Before;
-import org.junit.Test;
-
 import org.apache.hyracks.api.constraints.PartitionConstraintHelper;
 import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
@@ -40,6 +37,8 @@ import org.apache.hyracks.dataflow.std.misc.ConstantTupleSourceOperatorDescripto
 import org.apache.hyracks.storage.am.btree.dataflow.BTreeSearchOperatorDescriptor;
 import org.apache.hyracks.storage.am.common.dataflow.IIndexDataflowHelperFactory;
 import org.apache.hyracks.storage.am.common.impls.NoOpOperationCallbackFactory;
+import org.junit.Before;
+import org.junit.Test;
 
 public class BTreePrimaryIndexSearchOperatorTest extends AbstractBTreeOperatorTest {
 

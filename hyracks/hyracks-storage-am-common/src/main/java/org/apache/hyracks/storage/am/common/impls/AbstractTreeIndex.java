@@ -383,7 +383,7 @@ public abstract class AbstractTreeIndex implements ITreeIndex {
     public IBinaryComparatorFactory[] getCmpFactories() {
         return cmpFactories;
     }
-    
+
     @Override
     public boolean hasMemoryComponents() {
         return true;

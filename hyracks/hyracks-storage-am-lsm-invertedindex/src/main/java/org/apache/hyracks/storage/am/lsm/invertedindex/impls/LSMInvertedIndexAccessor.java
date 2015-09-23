@@ -21,6 +21,7 @@ package org.apache.hyracks.storage.am.lsm.invertedindex.impls;
 
 import java.util.List;
 
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.common.api.IIndexCursor;
@@ -82,6 +83,13 @@ public class LSMInvertedIndexAccessor implements ILSMIndexAccessorInternal, IInv
     }
 
     @Override
+    public IIndexCursor createSearchCursor(boolean exclusive, boolean useOperationCallbackProceedReturnResult,
+            RecordDescriptor rDesc, byte[] valuesForOperationCallbackProceedReturnResult) {
+        return new LSMInvertedIndexSearchCursor(useOperationCallbackProceedReturnResult, rDesc,
+                valuesForOperationCallbackProceedReturnResult);
+    }
+
+    @Override
     public void scheduleFlush(ILSMIOOperationCallback callback) throws HyracksDataException {
         ctx.setOperation(IndexOperation.FLUSH);
         lsmHarness.scheduleFlush(ctx, callback);
@@ -100,7 +108,7 @@ public class LSMInvertedIndexAccessor implements ILSMIndexAccessorInternal, IInv
         ctx.getComponentsToBeMerged().addAll(components);
         lsmHarness.scheduleMerge(ctx, callback);
     }
-    
+
     @Override
     public void scheduleReplication(List<ILSMComponent> lsmComponents, boolean bulkload) throws HyracksDataException {
         ctx.setOperation(IndexOperation.REPLICATE);

@@ -24,7 +24,9 @@ import java.io.Serializable;
 import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
 
 public interface ISearchPredicate extends Serializable {
-	public MultiComparator getLowKeyComparator();
+    public MultiComparator getLowKeyComparator();
 
-	public MultiComparator getHighKeyComparator();
+    public MultiComparator getHighKeyComparator();
+
+    public String applicableIndexType();
 }

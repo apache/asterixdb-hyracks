@@ -43,13 +43,19 @@ public class TreeIndexCreateOperatorDescriptor extends AbstractTreeIndexOperator
             ILocalResourceFactoryProvider localResourceFactoryProvider,
             IModificationOperationCallbackFactory modificationOpCallbackFactory) {
         super(spec, 0, 0, null, storageManager, lifecycleManagerProvider, fileSplitProvider, typeTraits,
-                comparatorFactories, bloomFilterKeyFields, dataflowHelperFactory, null, false,
-                false, null, localResourceFactoryProvider, NoOpOperationCallbackFactory.INSTANCE, modificationOpCallbackFactory);
+                comparatorFactories, bloomFilterKeyFields, dataflowHelperFactory, null, false, false, null,
+                localResourceFactoryProvider, NoOpOperationCallbackFactory.INSTANCE, modificationOpCallbackFactory);
     }
 
     @Override
     public IOperatorNodePushable createPushRuntime(IHyracksTaskContext ctx,
             IRecordDescriptorProvider recordDescProvider, int partition, int nPartitions) {
         return new IndexCreateOperatorNodePushable(this, ctx, partition);
+    }
+
+    @Override
+    public boolean getUseOpercationCallbackProceedReturnResult() {
+        // TODO Auto-generated method stub
+        return false;
     }
 }

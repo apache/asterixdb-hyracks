@@ -20,6 +20,7 @@ package org.apache.hyracks.storage.am.lsm.common.api;
 
 import java.util.List;
 
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.storage.am.common.api.IIndexOperationContext;
 import org.apache.hyracks.storage.am.common.api.IModificationOperationCallback;
 import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
@@ -39,6 +40,22 @@ public interface ILSMIndexOperationContext extends IIndexOperationContext {
     public void setSearchPredicate(ISearchPredicate searchPredicate);
 
     public ISearchPredicate getSearchPredicate();
-    
+
     public List<ILSMComponent> getComponentsToBeReplicated();
+
+    // If set to true, a search operation will generate one more field in addition to the index search output.
+    // That is, the result of SearchOperationCallback.proceed() will be recorded.
+    // For this, we also need to have record descriptor information.
+    public void setUseOperationCallbackProceedReturnResult(boolean useOperationCallbackProceedReturnResult);
+
+    public boolean getUseOperationCallbackProceedReturnResult();
+
+    public void setRecordDescForProceedReturnResult(RecordDescriptor rDescForProceedReturnResult);
+
+    public RecordDescriptor getRecordDescForProceedReturnResult();
+
+    public void setValuesForProceedReturnResult(byte[] valuesForProceedReturnResult);
+
+    public byte[] getValuesForProceedReturnResult();
+
 }

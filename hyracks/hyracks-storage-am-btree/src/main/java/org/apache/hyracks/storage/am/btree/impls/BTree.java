@@ -27,11 +27,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.data.std.primitive.IntegerPointable;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.dataflow.common.data.marshalling.IntegerSerializerDeserializer;
 import org.apache.hyracks.dataflow.common.util.TupleUtils;
 import org.apache.hyracks.storage.am.btree.api.IBTreeFrame;
 import org.apache.hyracks.storage.am.btree.api.IBTreeInteriorFrame;
@@ -340,7 +340,7 @@ public class BTree extends AbstractTreeIndex {
     private void update(ITupleReference tuple, BTreeOpContext ctx) throws HyracksDataException, TreeIndexException {
         // This call only allows updating of non-key fields.
         // Updating a tuple's key necessitates deleting the old entry, and inserting the new entry.
-        // The user of the BTree is responsible for dealing with non-key updates (i.e., doing a delete + insert). 
+        // The user of the BTree is responsible for dealing with non-key updates (i.e., doing a delete + insert).
         if (fieldCount == ctx.cmp.getKeyFieldCount()) {
             throw new BTreeNotUpdateableException("Cannot perform updates when the entire tuple forms the key.");
         }
@@ -644,7 +644,7 @@ public class BTree extends AbstractTreeIndex {
                                 node = isConsistent(pageId, ctx);
                                 if (node != null) {
                                     isReadLatched = true;
-                                    // Descend the tree again.                                
+                                    // Descend the tree again.
                                     continue;
                                 } else {
                                     // Pop pageLsn of this page (version seen by this op during descent).
@@ -666,7 +666,7 @@ public class BTree extends AbstractTreeIndex {
                                             BufferedFileHandle.getDiskPageId(fileId, pageId), false);
                                     interiorNode.acquireWriteLatch();
                                     try {
-                                        // Insert or update op. Both can cause split keys to propagate upwards. 
+                                        // Insert or update op. Both can cause split keys to propagate upwards.
                                         insertInterior(interiorNode, pageId, ctx.splitKey.getTuple(), ctx);
                                     } finally {
                                         interiorNode.releaseWriteLatch(true);
@@ -908,6 +908,13 @@ public class BTree extends AbstractTreeIndex {
         }
 
         @Override
+        public IIndexCursor createSearchCursor(boolean exclusive, boolean useOperationCallbackProceedReturnResult,
+                RecordDescriptor rDesc, byte[] valuesForOperationCallbackProceedReturnResult) {
+            // This method is only required for the LSM based indexes
+            return null;
+        }
+
+        @Override
         public void search(IIndexCursor cursor, ISearchPredicate searchPred) throws HyracksDataException,
                 TreeIndexException {
             ctx.setOperation(IndexOperation.SEARCH);
@@ -937,6 +944,7 @@ public class BTree extends AbstractTreeIndex {
             IBTreeLeafFrame leafFrame = (IBTreeLeafFrame) btree.getLeafFrameFactory().createFrame();
             return new BTreeCountingSearchCursor(leafFrame, false);
         }
+
     }
 
     @Override
@@ -1109,7 +1117,8 @@ public class BTree extends AbstractTreeIndex {
             tuple.resetByTupleIndex(interiorFrame, i);
             // Print child pointer.
             int numFields = tuple.getFieldCount();
-            int childPageId = IntegerPointable.getInteger(tuple.getFieldData(numFields - 1), tuple.getFieldStart(numFields - 1) + tuple.getFieldLength(numFields - 1));
+            int childPageId = IntegerPointable.getInteger(tuple.getFieldData(numFields - 1),
+                    tuple.getFieldStart(numFields - 1) + tuple.getFieldLength(numFields - 1));
             strBuilder.append("(" + childPageId + ") ");
             String tupleString = TupleUtils.printTuple(tuple, fieldSerdes);
             strBuilder.append(tupleString + " | ");

@@ -46,6 +46,9 @@ public class BTreeSearchOperatorDescriptor extends AbstractTreeIndexOperatorDesc
     protected final boolean highKeyInclusive;
     private final int[] minFilterFieldIndexes;
     private final int[] maxFilterFieldIndexes;
+    protected boolean useOpercationCallbackProceedReturnResult;
+    protected byte[] valuesForUseOperationCallbackProceedReturnResult;
+    protected long limitNumberOfResult;
 
     public BTreeSearchOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor recDesc,
             IStorageManagerInterface storageManager, IIndexLifecycleManagerProvider lifecycleManagerProvider,
@@ -55,6 +58,21 @@ public class BTreeSearchOperatorDescriptor extends AbstractTreeIndexOperatorDesc
             IIndexDataflowHelperFactory dataflowHelperFactory, boolean retainInput, boolean retainNull,
             INullWriterFactory nullWriterFactory, ISearchOperationCallbackFactory searchOpCallbackProvider,
             int[] minFilterFieldIndexes, int[] maxFilterFieldIndexes) {
+        this(spec, recDesc, storageManager, lifecycleManagerProvider, fileSplitProvider, typeTraits,
+                comparatorFactories, bloomFilterKeyFields, lowKeyFields, highKeyFields, lowKeyInclusive,
+                highKeyInclusive, dataflowHelperFactory, retainInput, retainNull, nullWriterFactory,
+                searchOpCallbackProvider, minFilterFieldIndexes, maxFilterFieldIndexes, false, null, -1);
+    }
+
+    public BTreeSearchOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor recDesc,
+            IStorageManagerInterface storageManager, IIndexLifecycleManagerProvider lifecycleManagerProvider,
+            IFileSplitProvider fileSplitProvider, ITypeTraits[] typeTraits,
+            IBinaryComparatorFactory[] comparatorFactories, int[] bloomFilterKeyFields, int[] lowKeyFields,
+            int[] highKeyFields, boolean lowKeyInclusive, boolean highKeyInclusive,
+            IIndexDataflowHelperFactory dataflowHelperFactory, boolean retainInput, boolean retainNull,
+            INullWriterFactory nullWriterFactory, ISearchOperationCallbackFactory searchOpCallbackProvider,
+            int[] minFilterFieldIndexes, int[] maxFilterFieldIndexes, boolean useOpercationCallbackProceedReturnResult,
+            byte[] valuesForUseOperationCallbackProceedReturnResult, long limitNumberOfResult) {
         super(spec, 1, 1, recDesc, storageManager, lifecycleManagerProvider, fileSplitProvider, typeTraits,
                 comparatorFactories, bloomFilterKeyFields, dataflowHelperFactory, null, retainInput, retainNull,
                 nullWriterFactory, NoOpLocalResourceFactoryProvider.INSTANCE, searchOpCallbackProvider,
@@ -65,6 +83,9 @@ public class BTreeSearchOperatorDescriptor extends AbstractTreeIndexOperatorDesc
         this.highKeyInclusive = highKeyInclusive;
         this.minFilterFieldIndexes = minFilterFieldIndexes;
         this.maxFilterFieldIndexes = maxFilterFieldIndexes;
+        this.useOpercationCallbackProceedReturnResult = useOpercationCallbackProceedReturnResult;
+        this.valuesForUseOperationCallbackProceedReturnResult = valuesForUseOperationCallbackProceedReturnResult;
+        this.limitNumberOfResult = limitNumberOfResult;
     }
 
     @Override
@@ -72,5 +93,20 @@ public class BTreeSearchOperatorDescriptor extends AbstractTreeIndexOperatorDesc
             IRecordDescriptorProvider recordDescProvider, int partition, int nPartitions) {
         return new BTreeSearchOperatorNodePushable(this, ctx, partition, recordDescProvider, lowKeyFields,
                 highKeyFields, lowKeyInclusive, highKeyInclusive, minFilterFieldIndexes, maxFilterFieldIndexes);
+    }
+
+    @Override
+    public boolean getUseOpercationCallbackProceedReturnResult() {
+        return useOpercationCallbackProceedReturnResult;
+    }
+
+    @Override
+    public byte[] getValuesForOpercationCallbackProceedReturnResult() {
+        return valuesForUseOperationCallbackProceedReturnResult;
+    }
+
+    @Override
+    public long getLimitNumberOfResult() {
+        return limitNumberOfResult;
     }
 }

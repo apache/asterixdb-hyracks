@@ -46,6 +46,8 @@ public class LSMInvertedIndexSearchOperatorDescriptor extends AbstractLSMInverte
     private final IInvertedIndexSearchModifierFactory searchModifierFactory;
     private final int[] minFilterFieldIndexes;
     private final int[] maxFilterFieldIndexes;
+    protected boolean useOpercationCallbackProceedReturnResult;
+    protected byte[] valuesForUseOperationCallbackProceedReturnResult;
 
     public LSMInvertedIndexSearchOperatorDescriptor(IOperatorDescriptorRegistry spec, int queryField,
             IStorageManagerInterface storageManager, IFileSplitProvider fileSplitProvider,
@@ -57,6 +59,23 @@ public class LSMInvertedIndexSearchOperatorDescriptor extends AbstractLSMInverte
             boolean retainNull, INullWriterFactory nullWriterFactory,
             ISearchOperationCallbackFactory searchOpCallbackProvider, int[] minFilterFieldIndexes,
             int[] maxFilterFieldIndexes) {
+        this(spec, queryField, storageManager, fileSplitProvider, lifecycleManagerProvider, tokenTypeTraits,
+                tokenComparatorFactories, invListsTypeTraits, invListComparatorFactories, btreeDataflowHelperFactory,
+                queryTokenizerFactory, searchModifierFactory, recDesc, retainInput, retainNull, nullWriterFactory,
+                searchOpCallbackProvider, minFilterFieldIndexes, maxFilterFieldIndexes, false, null);
+    }
+
+    public LSMInvertedIndexSearchOperatorDescriptor(IOperatorDescriptorRegistry spec, int queryField,
+            IStorageManagerInterface storageManager, IFileSplitProvider fileSplitProvider,
+            IIndexLifecycleManagerProvider lifecycleManagerProvider, ITypeTraits[] tokenTypeTraits,
+            IBinaryComparatorFactory[] tokenComparatorFactories, ITypeTraits[] invListsTypeTraits,
+            IBinaryComparatorFactory[] invListComparatorFactories,
+            IIndexDataflowHelperFactory btreeDataflowHelperFactory, IBinaryTokenizerFactory queryTokenizerFactory,
+            IInvertedIndexSearchModifierFactory searchModifierFactory, RecordDescriptor recDesc, boolean retainInput,
+            boolean retainNull, INullWriterFactory nullWriterFactory,
+            ISearchOperationCallbackFactory searchOpCallbackProvider, int[] minFilterFieldIndexes,
+            int[] maxFilterFieldIndexes, boolean useOpercationCallbackProceedReturnResult,
+            byte[] valuesForUseOperationCallbackProceedReturnResult) {
 
         super(spec, 1, 1, recDesc, storageManager, fileSplitProvider, lifecycleManagerProvider, tokenTypeTraits,
                 tokenComparatorFactories, invListsTypeTraits, invListComparatorFactories, queryTokenizerFactory,
@@ -67,6 +86,8 @@ public class LSMInvertedIndexSearchOperatorDescriptor extends AbstractLSMInverte
         this.searchModifierFactory = searchModifierFactory;
         this.minFilterFieldIndexes = minFilterFieldIndexes;
         this.maxFilterFieldIndexes = maxFilterFieldIndexes;
+        this.useOpercationCallbackProceedReturnResult = useOpercationCallbackProceedReturnResult;
+        this.valuesForUseOperationCallbackProceedReturnResult = valuesForUseOperationCallbackProceedReturnResult;
     }
 
     @Override
@@ -75,5 +96,15 @@ public class LSMInvertedIndexSearchOperatorDescriptor extends AbstractLSMInverte
         IInvertedIndexSearchModifier searchModifier = searchModifierFactory.createSearchModifier();
         return new LSMInvertedIndexSearchOperatorNodePushable(this, ctx, partition, recordDescProvider, queryField,
                 searchModifier, minFilterFieldIndexes, maxFilterFieldIndexes);
+    }
+
+    @Override
+    public boolean getUseOpercationCallbackProceedReturnResult() {
+        return useOpercationCallbackProceedReturnResult;
+    }
+
+    @Override
+    public byte[] getValuesForOpercationCallbackProceedReturnResult() {
+        return valuesForUseOperationCallbackProceedReturnResult;
     }
 }

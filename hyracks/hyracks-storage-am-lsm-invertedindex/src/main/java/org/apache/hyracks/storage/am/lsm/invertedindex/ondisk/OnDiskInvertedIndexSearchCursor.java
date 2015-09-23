@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.hyracks.api.comm.IFrameTupleAccessor;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.common.api.ICursorInitialState;
@@ -41,8 +42,17 @@ public class OnDiskInvertedIndexSearchCursor implements IIndexCursor {
     private final IFrameTupleAccessor fta;
     private final FixedSizeTupleReference frameTuple;
     private final PermutingTupleReference resultTuple;
-    
+    private boolean useOperationCallbackProceedReturnResult;
+    private RecordDescriptor recordDescForProceedReturnResult;
+    private byte[] valuesForOperationCallbackProceedReturnResult;
+
     public OnDiskInvertedIndexSearchCursor(IInvertedIndexSearcher invIndexSearcher, int numInvListFields) {
+        this(invIndexSearcher, numInvListFields, false, null, null);
+    }
+
+    public OnDiskInvertedIndexSearchCursor(IInvertedIndexSearcher invIndexSearcher, int numInvListFields,
+            boolean useOperationCallbackProceedReturnResult, RecordDescriptor recordDescForProceedReturnResult,
+            byte[] valuesForOperationCallbackProceedReturnResult) {
         this.invIndexSearcher = invIndexSearcher;
         this.fta = invIndexSearcher.createResultFrameTupleAccessor();
         this.frameTuple = (FixedSizeTupleReference) invIndexSearcher.createResultFrameTupleReference();
@@ -52,6 +62,9 @@ public class OnDiskInvertedIndexSearchCursor implements IIndexCursor {
             fieldPermutation[i] = i;
         }
         resultTuple = new PermutingTupleReference(fieldPermutation);
+        this.useOperationCallbackProceedReturnResult = useOperationCallbackProceedReturnResult;
+        this.recordDescForProceedReturnResult = recordDescForProceedReturnResult;
+        this.valuesForOperationCallbackProceedReturnResult = valuesForOperationCallbackProceedReturnResult;
     }
 
     @Override
@@ -64,7 +77,7 @@ public class OnDiskInvertedIndexSearchCursor implements IIndexCursor {
             fta.reset(resultBuffers.get(0));
         }
     }
-    
+
     @Override
     public boolean hasNext() {
         if (currentBufferIndex < numResultBuffers && tupleIndex < fta.getTupleCount()) {
@@ -85,7 +98,7 @@ public class OnDiskInvertedIndexSearchCursor implements IIndexCursor {
                 fta.reset(resultBuffers.get(currentBufferIndex));
                 tupleIndex = 0;
             }
-        }        
+        }
     }
 
     @Override

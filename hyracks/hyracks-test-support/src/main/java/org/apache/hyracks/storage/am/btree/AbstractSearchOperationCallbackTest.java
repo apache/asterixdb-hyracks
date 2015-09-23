@@ -180,7 +180,7 @@ public abstract class AbstractSearchOperationCallbackTest extends AbstractOperat
             }
 
             @Override
-            public void cancel(ITupleReference tuple) {
+            public void cancelReconcile(ITupleReference tuple) {
                 try {
                     TupleUtils.createIntegerTuple(builder, SearchTask.this.tuple, blockingValue);
                     Assert.assertEquals(0, cmp.compare(tuple, SearchTask.this.tuple));
@@ -192,6 +192,12 @@ public abstract class AbstractSearchOperationCallbackTest extends AbstractOperat
 
             @Override
             public void complete(ITupleReference tuple) throws HyracksDataException {
+
+            }
+
+            @Override
+            public void cancelProceed(ITupleReference tuple) throws HyracksDataException {
+                // TODO Auto-generated method stub
 
             }
 
