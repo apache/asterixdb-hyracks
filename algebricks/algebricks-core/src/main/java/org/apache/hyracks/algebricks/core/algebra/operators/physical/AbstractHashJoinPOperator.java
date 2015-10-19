@@ -1,16 +1,20 @@
 /*
- * Copyright 2009-2013 by The Regents of the University of California
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * you may obtain a copy of the License from
- * 
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package org.apache.hyracks.algebricks.core.algebra.operators.physical;
 
@@ -134,11 +138,16 @@ public abstract class AbstractHashJoinPOperator extends AbstractJoinPOperator {
                                     Set<LogicalVariable> modifuppreq = new ListSet<LogicalVariable>();
                                     Map<LogicalVariable, EquivalenceClass> eqmap = context.getEquivalenceClassMap(op);
                                     Set<LogicalVariable> covered = new ListSet<LogicalVariable>();
+                                    Set<LogicalVariable> keysCurrent = uppreq.getColumnSet();
+                                    List<LogicalVariable> keysFirst = (keysRightBranch.containsAll(keysCurrent)) ? keysRightBranch
+                                            : keysLeftBranch;
+                                    List<LogicalVariable> keysSecond = keysFirst == keysRightBranch ? keysLeftBranch
+                                            : keysRightBranch;
                                     for (LogicalVariable r : uppreq.getColumnSet()) {
                                         EquivalenceClass ecSnd = eqmap.get(r);
                                         boolean found = false;
                                         int j = 0;
-                                        for (LogicalVariable rvar : keysRightBranch) {
+                                        for (LogicalVariable rvar : keysFirst) {
                                             if (rvar == r || ecSnd != null && eqmap.get(rvar) == ecSnd) {
                                                 found = true;
                                                 break;
@@ -147,9 +156,9 @@ public abstract class AbstractHashJoinPOperator extends AbstractJoinPOperator {
                                         }
                                         if (!found) {
                                             throw new IllegalStateException("Did not find a variable equivalent to "
-                                                    + r + " among " + keysRightBranch);
+                                                    + r + " among " + keysFirst);
                                         }
-                                        LogicalVariable v2 = keysLeftBranch.get(j);
+                                        LogicalVariable v2 = keysSecond.get(j);
                                         EquivalenceClass ecFst = eqmap.get(v2);
                                         for (LogicalVariable vset1 : set1) {
                                             if (vset1 == v2 || ecFst != null && eqmap.get(vset1) == ecFst) {

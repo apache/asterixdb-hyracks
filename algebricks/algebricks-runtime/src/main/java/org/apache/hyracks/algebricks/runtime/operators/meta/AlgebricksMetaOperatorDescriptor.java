@@ -1,23 +1,24 @@
 /*
- * Copyright 2009-2013 by The Regents of the University of California
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * you may obtain a copy of the License from
- * 
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package org.apache.hyracks.algebricks.runtime.operators.meta;
 
 import java.nio.ByteBuffer;
-
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.runtime.base.AlgebricksPipeline;
@@ -32,6 +33,8 @@ import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryOutputSourceOperatorNodePushable;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class AlgebricksMetaOperatorDescriptor extends AbstractSingleActivityOperatorDescriptor {
 
@@ -89,10 +92,11 @@ public class AlgebricksMetaOperatorDescriptor extends AbstractSingleActivityOper
             final IRecordDescriptorProvider recordDescProvider, int partition, int nPartitions) {
         return new AbstractUnaryOutputSourceOperatorNodePushable() {
 
+            @Override
             public void initialize() throws HyracksDataException {
                 IFrameWriter startOfPipeline;
-                RecordDescriptor pipelineOutputRecordDescriptor = outputArity > 0 ? AlgebricksMetaOperatorDescriptor.this.recordDescriptors[0]
-                        : null;
+                RecordDescriptor pipelineOutputRecordDescriptor = outputArity > 0
+                        ? AlgebricksMetaOperatorDescriptor.this.recordDescriptors[0] : null;
 
                 PipelineAssembler pa = new PipelineAssembler(pipeline, inputArity, outputArity, null,
                         pipelineOutputRecordDescriptor);
@@ -101,8 +105,13 @@ public class AlgebricksMetaOperatorDescriptor extends AbstractSingleActivityOper
                 } catch (AlgebricksException e) {
                     throw new HyracksDataException(e);
                 }
-                startOfPipeline.open();
-                startOfPipeline.close();
+                try {
+                    startOfPipeline.open();
+                } catch (HyracksDataException e) {
+                    startOfPipeline.fail();
+                } finally {
+                    startOfPipeline.close();
+                }
             }
         };
     }
@@ -116,10 +125,10 @@ public class AlgebricksMetaOperatorDescriptor extends AbstractSingleActivityOper
             @Override
             public void open() throws HyracksDataException {
                 if (startOfPipeline == null) {
-                    RecordDescriptor pipelineOutputRecordDescriptor = outputArity > 0 ? AlgebricksMetaOperatorDescriptor.this.recordDescriptors[0]
-                            : null;
-                    RecordDescriptor pipelineInputRecordDescriptor = recordDescProvider.getInputRecordDescriptor(
-                            AlgebricksMetaOperatorDescriptor.this.getActivityId(), 0);
+                    RecordDescriptor pipelineOutputRecordDescriptor = outputArity > 0
+                            ? AlgebricksMetaOperatorDescriptor.this.recordDescriptors[0] : null;
+                    RecordDescriptor pipelineInputRecordDescriptor = recordDescProvider
+                            .getInputRecordDescriptor(AlgebricksMetaOperatorDescriptor.this.getActivityId(), 0);
                     PipelineAssembler pa = new PipelineAssembler(pipeline, inputArity, outputArity,
                             pipelineInputRecordDescriptor, pipelineOutputRecordDescriptor);
                     try {

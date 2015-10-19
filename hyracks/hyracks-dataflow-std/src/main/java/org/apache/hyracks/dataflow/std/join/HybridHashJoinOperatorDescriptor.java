@@ -1,16 +1,20 @@
 /*
- * Copyright 2009-2013 by The Regents of the University of California
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * you may obtain a copy of the License from
- * 
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package org.apache.hyracks.dataflow.std.join;
 
@@ -76,8 +80,10 @@ public class HybridHashJoinOperatorDescriptor extends AbstractOperatorDescriptor
 
     /**
      * @param spec
-     * @param memsize               in frames
-     * @param inputsize0            in frames
+     * @param memsize
+     *            in frames
+     * @param inputsize0
+     *            in frames
      * @param recordsPerFrame
      * @param factor
      * @param keys0
@@ -296,8 +302,8 @@ public class HybridHashJoinOperatorDescriptor extends AbstractOperatorDescriptor
                         if (memsize > inputsize0) {
                             state.nPartitions = 0;
                         } else {
-                            state.nPartitions = (int) (Math.ceil((double) (inputsize0 * factor / nPartitions - memsize)
-                                    / (double) (memsize - 1)));
+                            state.nPartitions = (int) (Math.ceil((inputsize0 * factor / nPartitions - memsize)
+                                    / (memsize - 1)));
                         }
                         if (state.nPartitions <= 0) {
                             // becomes in-memory HJ
@@ -320,10 +326,9 @@ public class HybridHashJoinOperatorDescriptor extends AbstractOperatorDescriptor
                             .createPartitioner();
                     int tableSize = (int) (state.memoryForHashtable * recordsPerFrame * factor);
                     ISerializableTable table = new SerializableHashTable(tableSize, ctx);
-                    state.joiner = new InMemoryHashJoin(ctx, tableSize,
-                            new FrameTupleAccessor(rd0), hpc0, new FrameTupleAccessor(rd1), hpc1,
-                            new FrameTuplePairComparator(keys0, keys1, comparators), isLeftOuter, nullWriters1, table,
-                            predEvaluator);
+                    state.joiner = new InMemoryHashJoin(ctx, tableSize, new FrameTupleAccessor(rd0), hpc0,
+                            new FrameTupleAccessor(rd1), hpc1, new FrameTuplePairComparator(keys0, keys1, comparators),
+                            isLeftOuter, nullWriters1, table, predEvaluator);
                     bufferForPartitions = new IFrame[state.nPartitions];
                     state.fWriters = new RunFileWriter[state.nPartitions];
                     for (int i = 0; i < state.nPartitions; i++) {
@@ -428,7 +433,7 @@ public class HybridHashJoinOperatorDescriptor extends AbstractOperatorDescriptor
                         int tupleCount0 = accessorProbe.getTupleCount();
                         for (int i = 0; i < tupleCount0; ++i) {
 
-                            int entry ;
+                            int entry;
                             if (state.memoryForHashtable == 0) {
                                 entry = hpcProbe.partition(accessorProbe, i, state.nPartitions);
                                 boolean newBuffer = false;
@@ -509,13 +514,12 @@ public class HybridHashJoinOperatorDescriptor extends AbstractOperatorDescriptor
                                 continue;
                             }
                             table.reset();
-                            InMemoryHashJoin joiner = new InMemoryHashJoin(ctx, tableSize, new FrameTupleAccessor(
-                                    rd0), hpcRep0, new FrameTupleAccessor(rd1), hpcRep1,
-                                    new FrameTuplePairComparator(keys0, keys1, comparators), isLeftOuter, nullWriters1,
-                                    table, predEvaluator);
+                            InMemoryHashJoin joiner = new InMemoryHashJoin(ctx, tableSize, new FrameTupleAccessor(rd0),
+                                    hpcRep0, new FrameTupleAccessor(rd1), hpcRep1, new FrameTuplePairComparator(keys0,
+                                            keys1, comparators), isLeftOuter, nullWriters1, table, predEvaluator);
 
                             if (buildWriter != null) {
-                                RunFileReader buildReader = buildWriter.createReader();
+                                RunFileReader buildReader = buildWriter.createDeleteOnCloseReader();
                                 buildReader.open();
                                 while (buildReader.nextFrame(inBuffer)) {
                                     ByteBuffer copyBuffer = ctx.allocateFrame(inBuffer.getFrameSize());
@@ -527,7 +531,7 @@ public class HybridHashJoinOperatorDescriptor extends AbstractOperatorDescriptor
                             }
 
                             // probe
-                            RunFileReader probeReader = probeWriter.createReader();
+                            RunFileReader probeReader = probeWriter.createDeleteOnCloseReader();
                             probeReader.open();
                             while (probeReader.nextFrame(inBuffer)) {
                                 joiner.join(inBuffer.getBuffer(), writer);

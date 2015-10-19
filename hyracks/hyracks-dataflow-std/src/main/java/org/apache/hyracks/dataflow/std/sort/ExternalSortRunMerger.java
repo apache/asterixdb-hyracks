@@ -1,16 +1,20 @@
 /*
- * Copyright 2009-2013 by The Regents of the University of California
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  you may obtain a copy of the License from
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package org.apache.hyracks.dataflow.std.sort;
 
@@ -59,8 +63,8 @@ public class ExternalSortRunMerger {
     public ExternalSortRunMerger(IHyracksTaskContext ctx, ISorter sorter, List<RunAndMaxFrameSizePair> runs,
             int[] sortFields, IBinaryComparator[] comparators, INormalizedKeyComputer nmkComputer,
             RecordDescriptor recordDesc, int framesLimit, IFrameWriter writer) {
-        this(ctx, sorter, runs, sortFields, comparators, nmkComputer, recordDesc, framesLimit,
-                Integer.MAX_VALUE, writer);
+        this(ctx, sorter, runs, sortFields, comparators, nmkComputer, recordDesc, framesLimit, Integer.MAX_VALUE,
+                writer);
     }
 
     public ExternalSortRunMerger(IHyracksTaskContext ctx, ISorter sorter, List<RunAndMaxFrameSizePair> runs,
@@ -114,8 +118,7 @@ public class ExternalSortRunMerger {
                 while (true) {
 
                     int unUsed = selectPartialRuns(maxMergeWidth * ctx.getInitialFrameSize(), runs, partialRuns,
-                            currentGenerationRunAvailable,
-                            stop);
+                            currentGenerationRunAvailable, stop);
                     prepareFrames(unUsed, inFrames, partialRuns);
 
                     if (!currentGenerationRunAvailable.isEmpty() || stop < runs.size()) {
@@ -139,7 +142,7 @@ public class ExternalSortRunMerger {
                             mergedMaxFrameSize = merge(mergeResultWriter, partialRuns);
                             mergeResultWriter.close();
 
-                            reader = mergeFileWriter.createReader();
+                            reader = mergeFileWriter.createDeleteOnCloseReader();
                         }
 
                         appendNewRuns(reader, mergedMaxFrameSize);
@@ -192,8 +195,7 @@ public class ExternalSortRunMerger {
         return budget;
     }
 
-    private void prepareFrames(int extraFreeMem, List<GroupVSizeFrame> inFrames,
-            List<RunAndMaxFrameSizePair> patialRuns)
+    private void prepareFrames(int extraFreeMem, List<GroupVSizeFrame> inFrames, List<RunAndMaxFrameSizePair> patialRuns)
             throws HyracksDataException {
         if (extraFreeMem > 0 && patialRuns.size() > 1) {
             int extraFrames = extraFreeMem / ctx.getInitialFrameSize();
@@ -242,14 +244,13 @@ public class ExternalSortRunMerger {
         return sortFields;
     }
 
-    private int merge(IFrameWriter writer, List<RunAndMaxFrameSizePair> partialRuns)
-            throws HyracksDataException {
+    private int merge(IFrameWriter writer, List<RunAndMaxFrameSizePair> partialRuns) throws HyracksDataException {
         tempRuns.clear();
         for (int i = 0; i < partialRuns.size(); i++) {
             tempRuns.add(partialRuns.get(i).run);
         }
-        RunMergingFrameReader merger = new RunMergingFrameReader(ctx, tempRuns, inFrames, getSortFields(),
-                comparators, nmkComputer, recordDesc, topK);
+        RunMergingFrameReader merger = new RunMergingFrameReader(ctx, tempRuns, inFrames, getSortFields(), comparators,
+                nmkComputer, recordDesc, topK);
         int maxFrameSize = 0;
         int io = 0;
         merger.open();
