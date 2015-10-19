@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,13 +15,18 @@
 
 package edu.uci.ics.hyracks.storage.am.lsm.common.impls;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
+import edu.uci.ics.hyracks.api.replication.IReplicationJob.ReplicationExecutionType;
+import edu.uci.ics.hyracks.api.replication.IReplicationJob.ReplicationOperation;
 import edu.uci.ics.hyracks.storage.am.common.api.ITreeIndex;
 import edu.uci.ics.hyracks.storage.am.common.api.ITreeIndexMetaDataFrame;
 import edu.uci.ics.hyracks.storage.am.lsm.common.api.ILSMComponent;
@@ -32,6 +37,7 @@ import edu.uci.ics.hyracks.storage.am.lsm.common.api.ILSMIOOperationCallback;
 import edu.uci.ics.hyracks.storage.am.lsm.common.api.ILSMIOOperationScheduler;
 import edu.uci.ics.hyracks.storage.am.lsm.common.api.ILSMIndexFileManager;
 import edu.uci.ics.hyracks.storage.am.lsm.common.api.ILSMIndexInternal;
+import edu.uci.ics.hyracks.storage.am.lsm.common.api.ILSMIndexOperationContext;
 import edu.uci.ics.hyracks.storage.am.lsm.common.api.ILSMMergePolicy;
 import edu.uci.ics.hyracks.storage.am.lsm.common.api.ILSMOperationTracker;
 import edu.uci.ics.hyracks.storage.am.lsm.common.api.IVirtualBufferCache;
@@ -46,23 +52,24 @@ public abstract class AbstractLSMIndex implements ILSMIndexInternal {
     protected final ILSMIOOperationScheduler ioScheduler;
     protected final ILSMIOOperationCallback ioOpCallback;
 
-    // In-memory components.   
+    // In-memory components.
     protected final List<ILSMComponent> memoryComponents;
     protected final List<IVirtualBufferCache> virtualBufferCaches;
     protected AtomicInteger currentMutableComponentId;
 
-    // On-disk components.    
+    // On-disk components.
     protected final IBufferCache diskBufferCache;
     protected final ILSMIndexFileManager fileManager;
     protected final IFileMapProvider diskFileMapProvider;
     protected final List<ILSMComponent> diskComponents;
+    protected final List<ILSMComponent> inactiveDiskComponents;
     protected final double bloomFilterFalsePositiveRate;
     protected final ILSMComponentFilterFrameFactory filterFrameFactory;
     protected final LSMComponentFilterManager filterManager;
     protected final int[] filterFields;
+    protected final boolean durable;
 
     protected boolean isActivated;
-
     protected final AtomicBoolean[] flushRequests;
 
     public AbstractLSMIndex(List<IVirtualBufferCache> virtualBufferCaches, IBufferCache diskBufferCache,
@@ -70,7 +77,7 @@ public abstract class AbstractLSMIndex implements ILSMIndexInternal {
             double bloomFilterFalsePositiveRate, ILSMMergePolicy mergePolicy, ILSMOperationTracker opTracker,
             ILSMIOOperationScheduler ioScheduler, ILSMIOOperationCallback ioOpCallback,
             ILSMComponentFilterFrameFactory filterFrameFactory, LSMComponentFilterManager filterManager,
-            int[] filterFields) {
+            int[] filterFields, boolean durable) {
         this.virtualBufferCaches = virtualBufferCaches;
         this.diskBufferCache = diskBufferCache;
         this.diskFileMapProvider = diskFileMapProvider;
@@ -82,9 +89,11 @@ public abstract class AbstractLSMIndex implements ILSMIndexInternal {
         this.filterFrameFactory = filterFrameFactory;
         this.filterManager = filterManager;
         this.filterFields = filterFields;
-        lsmHarness = new LSMHarness(this, mergePolicy, opTracker);
+        this.inactiveDiskComponents = new LinkedList<ILSMComponent>();
+        this.durable = durable;
+        lsmHarness = new LSMHarness(this, mergePolicy, opTracker, diskBufferCache.isReplicationEnabled());
         isActivated = false;
-        diskComponents = new LinkedList<ILSMComponent>();
+        diskComponents = new ArrayList<ILSMComponent>();
         memoryComponents = new ArrayList<ILSMComponent>();
         currentMutableComponentId = new AtomicInteger();
         flushRequests = new AtomicBoolean[virtualBufferCaches.size()];
@@ -96,16 +105,19 @@ public abstract class AbstractLSMIndex implements ILSMIndexInternal {
     // The constructor used by external indexes
     public AbstractLSMIndex(IBufferCache diskBufferCache, ILSMIndexFileManager fileManager,
             IFileMapProvider diskFileMapProvider, double bloomFilterFalsePositiveRate, ILSMMergePolicy mergePolicy,
-            ILSMOperationTracker opTracker, ILSMIOOperationScheduler ioScheduler, ILSMIOOperationCallback ioOpCallback) {
+            ILSMOperationTracker opTracker, ILSMIOOperationScheduler ioScheduler, ILSMIOOperationCallback ioOpCallback,
+            boolean durable) {
         this.diskBufferCache = diskBufferCache;
         this.diskFileMapProvider = diskFileMapProvider;
         this.fileManager = fileManager;
         this.bloomFilterFalsePositiveRate = bloomFilterFalsePositiveRate;
         this.ioScheduler = ioScheduler;
         this.ioOpCallback = ioOpCallback;
-        lsmHarness = new ExternalIndexHarness(this, mergePolicy, opTracker);
+        this.durable = durable;
+        lsmHarness = new ExternalIndexHarness(this, mergePolicy, opTracker, diskBufferCache.isReplicationEnabled());
         isActivated = false;
         diskComponents = new LinkedList<ILSMComponent>();
+        this.inactiveDiskComponents = new LinkedList<ILSMComponent>();
         // Memory related objects are nulled
         this.virtualBufferCaches = null;
         memoryComponents = null;
@@ -119,7 +131,7 @@ public abstract class AbstractLSMIndex implements ILSMIndexInternal {
     protected void forceFlushDirtyPages(ITreeIndex treeIndex) throws HyracksDataException {
         int fileId = treeIndex.getFileId();
         IBufferCache bufferCache = treeIndex.getBufferCache();
-        // Flush all dirty pages of the tree. 
+        // Flush all dirty pages of the tree.
         // By default, metadata and data are flushed asynchronously in the buffercache.
         // This means that the flush issues writes to the OS, but the data may still lie in filesystem buffers.
         ITreeIndexMetaDataFrame metadataFrame = treeIndex.getFreePageManager().getMetaDataFrameFactory().createFrame();
@@ -143,7 +155,10 @@ public abstract class AbstractLSMIndex implements ILSMIndexInternal {
             }
         }
         // Forces all pages of given file to disk. This guarantees the data makes it to disk.
-        bufferCache.force(fileId, true);
+        // If the index is not durable, then the flush is not necessary.
+        if (durable) {
+            bufferCache.force(fileId, true);
+        }
     }
 
     protected void markAsValidInternal(ITreeIndex treeIndex) throws HyracksDataException {
@@ -162,7 +177,7 @@ public abstract class AbstractLSMIndex implements ILSMIndexInternal {
             bufferCache.unpin(metadataPage);
         }
 
-        // WARNING: flushing the metadata page should be done after releasing the write latch; otherwise, the page 
+        // WARNING: flushing the metadata page should be done after releasing the write latch; otherwise, the page
         // won't be flushed to disk because it won't be dirty until the write latch has been released.
         metadataPage = bufferCache.tryPin(BufferedFileHandle.getDiskPageId(fileId, metadataPageId));
         if (metadataPage != null) {
@@ -175,7 +190,10 @@ public abstract class AbstractLSMIndex implements ILSMIndexInternal {
         }
 
         // Force modified metadata page to disk.
-        bufferCache.force(fileId, true);
+        // If the index is not durable, then the flush is not necessary.
+        if (durable) {
+            bufferCache.force(fileId, true);
+        }
     }
 
     @Override
@@ -248,19 +266,68 @@ public abstract class AbstractLSMIndex implements ILSMIndexInternal {
     public String toString() {
         return "LSMIndex [" + fileManager.getBaseDir() + "]";
     }
-    
+
     @Override
     public boolean hasMemoryComponents() {
         return true;
     }
-    
+
     @Override
     public boolean isCurrentMutableComponentEmpty() throws HyracksDataException {
         //check if the current memory component has been modified
         return !((AbstractMemoryLSMComponent) memoryComponents.get(currentMutableComponentId.get())).isModified();
     }
+
+    public void setCurrentMutableComponentState(ComponentState componentState) {
+        ((AbstractMemoryLSMComponent) memoryComponents.get(currentMutableComponentId.get())).setState(componentState);
+    }
+
+    public ComponentState getCurrentMutableComponentState() {
+        return ((AbstractMemoryLSMComponent) memoryComponents.get(currentMutableComponentId.get())).getState();
+    }
+
+    public int getCurrentMutableComponentWriterCount() {
+        return ((AbstractMemoryLSMComponent) memoryComponents.get(currentMutableComponentId.get())).getWriterCount();
+    }
+
+    @Override
+    public List<ILSMComponent> getInactiveDiskComponents() {
+        return inactiveDiskComponents;
+    }
+
+    @Override
+    public void addInactiveDiskComponent(ILSMComponent diskComponent) {
+        inactiveDiskComponents.add(diskComponent);
+    }
     
-    public void makeCurrentMutableComponentUnWritable() throws HyracksDataException {
-        ((AbstractMemoryLSMComponent) memoryComponents.get(currentMutableComponentId.get())).setState(ComponentState.READABLE_UNWRITABLE);
+    public abstract Set<String> getLSMComponentPhysicalFiles(ILSMComponent newComponent);
+
+    @Override
+    public void scheduleReplication(ILSMIndexOperationContext ctx, List<ILSMComponent> lsmComponents, boolean bulkload,
+            ReplicationOperation operation) throws HyracksDataException {
+        //get set of files to be replicated for this component
+        Set<String> componentFiles = new HashSet<String>();
+
+        //get set of files to be replicated for each component
+        for (ILSMComponent lsmComponent : lsmComponents) {
+            componentFiles.addAll(getLSMComponentPhysicalFiles(lsmComponent));
+        }
+
+        ReplicationExecutionType executionType;
+        if (bulkload) {
+            executionType = ReplicationExecutionType.SYNC;
+        } else {
+            executionType = ReplicationExecutionType.ASYNC;
+        }
+
+        //create replication job and submit it
+        LSMIndexReplicationJob job = new LSMIndexReplicationJob(this, ctx, componentFiles, operation,
+                executionType);
+        try {
+            diskBufferCache.getIIOReplicationManager().submitJob(job);
+        } catch (IOException e) {
+            throw new HyracksDataException(e);
+        }
+
     }
 }

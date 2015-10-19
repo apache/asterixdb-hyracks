@@ -19,6 +19,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
+import edu.uci.ics.hyracks.api.replication.IReplicationJob.ReplicationOperation;
 import edu.uci.ics.hyracks.dataflow.common.data.accessors.ITupleReference;
 import edu.uci.ics.hyracks.storage.am.common.api.IIndexCursor;
 import edu.uci.ics.hyracks.storage.am.common.api.ISearchPredicate;
@@ -36,14 +37,13 @@ import edu.uci.ics.hyracks.storage.am.lsm.common.api.ITwoPCIndex;
 public class ExternalIndexHarness extends LSMHarness {
     private static final Logger LOGGER = Logger.getLogger(ExternalIndexHarness.class.getName());
 
-
-    public ExternalIndexHarness(ILSMIndexInternal lsmIndex, ILSMMergePolicy mergePolicy, ILSMOperationTracker opTracker) {
-        super(lsmIndex,mergePolicy,opTracker);
+    public ExternalIndexHarness(ILSMIndexInternal lsmIndex, ILSMMergePolicy mergePolicy, ILSMOperationTracker opTracker, boolean replicationEnabled) {
+        super(lsmIndex, mergePolicy, opTracker, replicationEnabled);
     }
 
     @Override
-    protected boolean getAndEnterComponents(ILSMIndexOperationContext ctx, LSMOperationType opType, boolean isTryOperation)
-            throws HyracksDataException {
+    protected boolean getAndEnterComponents(ILSMIndexOperationContext ctx, LSMOperationType opType,
+            boolean isTryOperation) throws HyracksDataException {
         synchronized (opTracker) {
             while (true) {
                 lsmIndex.getOperationalComponents(ctx);
@@ -67,7 +67,8 @@ public class ExternalIndexHarness extends LSMHarness {
     }
 
     @Override
-    protected boolean enterComponents(ILSMIndexOperationContext ctx, LSMOperationType opType) throws HyracksDataException {
+    protected boolean enterComponents(ILSMIndexOperationContext ctx, LSMOperationType opType)
+            throws HyracksDataException {
         List<ILSMComponent> components = ctx.getComponentHolder();
         int numEntered = 0;
         boolean entranceSuccessful = false;
@@ -111,6 +112,11 @@ public class ExternalIndexHarness extends LSMHarness {
                     c.threadExit(opType, failedOperation, false);
                     switch (c.getState()) {
                         case INACTIVE:
+                            if (replicationEnabled) {
+                                componentsToBeReplicated.clear();
+                                componentsToBeReplicated.add(c);
+                                lsmIndex.scheduleReplication(null, componentsToBeReplicated, false, ReplicationOperation.DELETE);
+                            }
                             ((AbstractDiskLSMComponent) c).destroy();
                             break;
                         default:
@@ -124,6 +130,11 @@ public class ExternalIndexHarness extends LSMHarness {
                         if (newComponent != null) {
                             beforeSubsumeMergedComponents(newComponent, ctx.getComponentHolder());
                             lsmIndex.subsumeMergedComponents(newComponent, ctx.getComponentHolder());
+                            if (replicationEnabled) {
+                                componentsToBeReplicated.clear();
+                                componentsToBeReplicated.add(newComponent);
+                                triggerReplication(componentsToBeReplicated, false);
+                            }
                             mergePolicy.diskComponentAdded(lsmIndex, fullMergeIsRequested.get());
                         }
                         break;
@@ -221,10 +232,17 @@ public class ExternalIndexHarness extends LSMHarness {
     @Override
     public void addBulkLoadedComponent(ILSMComponent c) throws HyracksDataException, IndexException {
         lsmIndex.markAsValid(c);
-        lsmIndex.addComponent(c);
-        // Enter the component
-        enterComponent(c);
-        mergePolicy.diskComponentAdded(lsmIndex, false);
+        synchronized (opTracker) {
+            lsmIndex.addComponent(c);
+            if (replicationEnabled) {
+                componentsToBeReplicated.clear();
+                componentsToBeReplicated.add(c);
+                triggerReplication(componentsToBeReplicated, true);
+            }
+            // Enter the component
+            enterComponent(c);
+            mergePolicy.diskComponentAdded(lsmIndex, false);
+        }
     }
 
     // Three differences from  addBulkLoadedComponent
@@ -309,6 +327,11 @@ public class ExternalIndexHarness extends LSMHarness {
     private void exitComponent(ILSMComponent diskComponent) throws HyracksDataException {
         diskComponent.threadExit(LSMOperationType.SEARCH, false, false);
         if (diskComponent.getState() == ILSMComponent.ComponentState.INACTIVE) {
+            if (replicationEnabled) {
+                componentsToBeReplicated.clear();
+                componentsToBeReplicated.add(diskComponent);
+                lsmIndex.scheduleReplication(null, componentsToBeReplicated, false, ReplicationOperation.DELETE);
+            }
             ((AbstractDiskLSMComponent) diskComponent).destroy();
         }
     }

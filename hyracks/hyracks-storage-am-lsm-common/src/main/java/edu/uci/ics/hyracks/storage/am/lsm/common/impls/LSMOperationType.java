@@ -19,5 +19,6 @@ public enum LSMOperationType {
     MODIFICATION,
     FORCE_MODIFICATION,
     FLUSH,
-    MERGE
+    MERGE,
+    REPLICATE
 }

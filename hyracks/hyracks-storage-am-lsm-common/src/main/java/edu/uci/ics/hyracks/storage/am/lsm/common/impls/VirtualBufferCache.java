@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,6 +23,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
 import edu.uci.ics.hyracks.api.io.FileReference;
+import edu.uci.ics.hyracks.api.replication.IIOReplicationManager;
 import edu.uci.ics.hyracks.storage.am.lsm.common.api.IVirtualBufferCache;
 import edu.uci.ics.hyracks.storage.common.buffercache.ICacheMemoryAllocator;
 import edu.uci.ics.hyracks.storage.common.buffercache.ICachedPage;
@@ -49,9 +50,9 @@ public class VirtualBufferCache implements IVirtualBufferCache {
         this.allocator = allocator;
         this.fileMapManager = new TransientFileMapManager();
         this.pageSize = pageSize;
-        this.numPages = numPages;
+        this.numPages = 2 * (numPages / 2) + 1;
 
-        buckets = new CacheBucket[numPages];
+        buckets = new CacheBucket[this.numPages];
         pages = new ArrayList<VirtualPage>();
         nextFree = 0;
         open = false;
@@ -185,7 +186,8 @@ public class VirtualBufferCache implements IVirtualBufferCache {
     }
 
     private int hash(long dpid) {
-        return (int) (dpid % buckets.length);
+        int hashValue = (int) dpid ^ (Integer.reverse((int) (dpid >>> 32)) >>> 1);
+        return hashValue % buckets.length;
     }
 
     private VirtualPage getOrAllocPage(long dpid) {
@@ -341,6 +343,7 @@ public class VirtualBufferCache implements IVirtualBufferCache {
         }
 
     }
+
     //These 4 methods aren't applicable here.
     @Override
     public int createMemFile() throws HyracksDataException {
@@ -363,6 +366,21 @@ public class VirtualBufferCache implements IVirtualBufferCache {
     @Override
     public ICachedPage unpinVirtual(long vpid, long dpid) throws HyracksDataException {
         // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public int getFileReferenceCount(int fileId) {
+        return 0;
+    }
+
+    @Override
+    public boolean isReplicationEnabled() {
+        return false;
+    }
+
+    @Override
+    public IIOReplicationManager getIIOReplicationManager() {
         return null;
     }
 }

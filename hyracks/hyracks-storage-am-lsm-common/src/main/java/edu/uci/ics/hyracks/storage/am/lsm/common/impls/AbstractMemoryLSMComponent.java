@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -82,9 +82,10 @@ public abstract class AbstractMemoryLSMComponent extends AbstractLSMComponent {
                     }
                 }
                 break;
+            case REPLICATE:
             case SEARCH:
                 if (state == ComponentState.READABLE_WRITABLE || state == ComponentState.READABLE_UNWRITABLE
-                        || state == ComponentState.READABLE_UNWRITABLE_FLUSHING) {
+                || state == ComponentState.READABLE_UNWRITABLE_FLUSHING) {
                     readerCount++;
                 } else {
                     return false;
@@ -92,7 +93,9 @@ public abstract class AbstractMemoryLSMComponent extends AbstractLSMComponent {
                 break;
             case FLUSH:
                 if (state == ComponentState.READABLE_WRITABLE || state == ComponentState.READABLE_UNWRITABLE) {
-                    assert writerCount == 0;
+                    if (writerCount != 0) {
+                        throw new IllegalStateException("Trying to flush when writerCount != 0");
+                    }
                     state = ComponentState.READABLE_UNWRITABLE_FLUSHING;
                     readerCount++;
                 } else {
@@ -124,6 +127,7 @@ public abstract class AbstractMemoryLSMComponent extends AbstractLSMComponent {
                     }
                 }
                 break;
+            case REPLICATE:
             case SEARCH:
                 readerCount--;
                 if (state == ComponentState.UNREADABLE_UNWRITABLE && readerCount == 0) {
@@ -131,7 +135,9 @@ public abstract class AbstractMemoryLSMComponent extends AbstractLSMComponent {
                 }
                 break;
             case FLUSH:
-                assert state == ComponentState.READABLE_UNWRITABLE_FLUSHING;
+                if (state != ComponentState.READABLE_UNWRITABLE_FLUSHING) {
+                    throw new IllegalStateException("Flush sees an illegal LSM memory compoenent state: " + state);
+                }
                 readerCount--;
                 if (readerCount == 0) {
                     state = ComponentState.INACTIVE;
@@ -142,7 +148,10 @@ public abstract class AbstractMemoryLSMComponent extends AbstractLSMComponent {
             default:
                 throw new UnsupportedOperationException("Unsupported operation " + opType);
         }
-        assert readerCount > -1 && writerCount > -1;
+
+        if (readerCount <= -1 || writerCount <= -1) {
+            throw new IllegalStateException("Invalid reader or writer count " + readerCount + " - " + writerCount);
+        }
     }
 
     public boolean isReadable() {
@@ -161,7 +170,7 @@ public abstract class AbstractMemoryLSMComponent extends AbstractLSMComponent {
     public ComponentState getState() {
         return state;
     }
-    
+
     public void setState(ComponentState state) {
         this.state = state;
     }
@@ -187,5 +196,9 @@ public abstract class AbstractMemoryLSMComponent extends AbstractLSMComponent {
         if (filter != null) {
             filter.reset();
         }
+    }
+
+    public int getWriterCount() {
+        return writerCount;
     }
 }

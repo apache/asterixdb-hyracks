@@ -66,11 +66,13 @@ public class LSMInvertedIndexAccessor implements ILSMIndexAccessorInternal, IInv
         return lsmHarness.modify(ctx, true, tuple);
     }
 
+    @Override
     public void search(IIndexCursor cursor, ISearchPredicate searchPred) throws HyracksDataException, IndexException {
         ctx.setOperation(IndexOperation.SEARCH);
         lsmHarness.search(ctx, cursor, searchPred);
     }
 
+    @Override
     public IIndexCursor createSearchCursor(boolean exclusive) {
         return new LSMInvertedIndexSearchCursor();
     }
@@ -93,6 +95,14 @@ public class LSMInvertedIndexAccessor implements ILSMIndexAccessorInternal, IInv
         ctx.getComponentsToBeMerged().clear();
         ctx.getComponentsToBeMerged().addAll(components);
         lsmHarness.scheduleMerge(ctx, callback);
+    }
+    
+    @Override
+    public void scheduleReplication(List<ILSMComponent> lsmComponents, boolean bulkload) throws HyracksDataException {
+        ctx.setOperation(IndexOperation.REPLICATE);
+        ctx.getComponentsToBeReplicated().clear();
+        ctx.getComponentsToBeReplicated().addAll(lsmComponents);
+        lsmHarness.scheduleReplication(ctx, lsmComponents, bulkload);
     }
 
     @Override
@@ -169,4 +179,5 @@ public class LSMInvertedIndexAccessor implements ILSMIndexAccessorInternal, IInv
             throws HyracksDataException, IndexException {
         throw new UnsupportedOperationException("Cannot open inverted list cursor on lsm inverted index.");
     }
+
 }

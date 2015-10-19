@@ -15,11 +15,10 @@
 
 package edu.uci.ics.hyracks.storage.am.lsm.invertedindex.dataflow;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import edu.uci.ics.hyracks.api.comm.FrameHelper;
+import edu.uci.ics.hyracks.api.comm.VSizeFrame;
 import edu.uci.ics.hyracks.api.context.IHyracksTaskContext;
 import edu.uci.ics.hyracks.api.dataflow.value.RecordDescriptor;
 import edu.uci.ics.hyracks.api.exceptions.HyracksDataException;
@@ -27,15 +26,12 @@ import edu.uci.ics.hyracks.data.std.util.GrowableArray;
 import edu.uci.ics.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import edu.uci.ics.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import edu.uci.ics.hyracks.dataflow.common.comm.io.FrameTupleAppender;
-import edu.uci.ics.hyracks.dataflow.common.comm.util.ByteBufferInputStream;
 import edu.uci.ics.hyracks.dataflow.common.comm.util.FrameUtils;
-import edu.uci.ics.hyracks.dataflow.common.util.IntSerDeUtils;
 import edu.uci.ics.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
 import edu.uci.ics.hyracks.storage.am.lsm.invertedindex.tokenizers.IBinaryTokenizer;
 import edu.uci.ics.hyracks.storage.am.lsm.invertedindex.tokenizers.IToken;
 
-public class BinaryTokenizerOperatorNodePushable extends
-        AbstractUnaryInputUnaryOutputOperatorNodePushable {
+public class BinaryTokenizerOperatorNodePushable extends AbstractUnaryInputUnaryOutputOperatorNodePushable {
 
     private final IHyracksTaskContext ctx;
     private final IBinaryTokenizer tokenizer;
@@ -50,11 +46,9 @@ public class BinaryTokenizerOperatorNodePushable extends
     private ArrayTupleBuilder builder;
     private GrowableArray builderData;
     private FrameTupleAppender appender;
-    private ByteBuffer writeBuffer;
 
-    public BinaryTokenizerOperatorNodePushable(IHyracksTaskContext ctx,
-            RecordDescriptor inputRecDesc, RecordDescriptor outputRecDesc,
-            IBinaryTokenizer tokenizer, int docField, int[] keyFields,
+    public BinaryTokenizerOperatorNodePushable(IHyracksTaskContext ctx, RecordDescriptor inputRecDesc,
+            RecordDescriptor outputRecDesc, IBinaryTokenizer tokenizer, int docField, int[] keyFields,
             boolean addNumTokensKey, boolean writeKeyFieldsFirst) {
         this.ctx = ctx;
         this.tokenizer = tokenizer;
@@ -68,12 +62,10 @@ public class BinaryTokenizerOperatorNodePushable extends
 
     @Override
     public void open() throws HyracksDataException {
-        accessor = new FrameTupleAccessor(ctx.getFrameSize(), inputRecDesc);
-        writeBuffer = ctx.allocateFrame();
+        accessor = new FrameTupleAccessor(inputRecDesc);
         builder = new ArrayTupleBuilder(outputRecDesc.getFieldCount());
         builderData = builder.getFieldData();
-        appender = new FrameTupleAppender(ctx.getFrameSize());
-        appender.reset(writeBuffer, true);
+        appender = new FrameTupleAppender(new VSizeFrame(ctx), true);
         writer.open();
     }
 
@@ -84,26 +76,16 @@ public class BinaryTokenizerOperatorNodePushable extends
 
         for (int i = 0; i < tupleCount; i++) {
             short numTokens = 0;
-            if (addNumTokensKey) {
-                // Run through the tokens to get the total number of tokens.
-                tokenizer.reset(
-                        accessor.getBuffer().array(),
-                        accessor.getTupleStartOffset(i)
-                                + accessor.getFieldSlotsLength()
-                                + accessor.getFieldStartOffset(i, docField),
-                        accessor.getFieldLength(i, docField));
-                while (tokenizer.hasNext()) {
-                    tokenizer.next();
-                    numTokens++;
-                }
-            }
 
             tokenizer.reset(
                     accessor.getBuffer().array(),
-                    accessor.getTupleStartOffset(i)
-                            + accessor.getFieldSlotsLength()
-                            + accessor.getFieldStartOffset(i, docField),
-                    accessor.getFieldLength(i, docField));
+                    accessor.getTupleStartOffset(i) + accessor.getFieldSlotsLength()
+                            + accessor.getFieldStartOffset(i, docField), accessor.getFieldLength(i, docField));
+
+            if (addNumTokensKey) {
+                // Get the total number of tokens.
+                numTokens = tokenizer.getTokensCount();
+            }
 
             // Write token and data into frame by following the order specified
             // in the writeKeyFieldsFirst field.
@@ -157,19 +139,8 @@ public class BinaryTokenizerOperatorNodePushable extends
 
                 }
 
-                if (!appender.append(builder.getFieldEndOffsets(),
-                        builder.getByteArray(), 0, builder.getSize())) {
-                    FrameUtils.flushFrame(writeBuffer, writer);
-                    appender.reset(writeBuffer, true);
-
-                    if (!appender.append(builder.getFieldEndOffsets(),
-                            builder.getByteArray(), 0, builder.getSize())) {
-                        throw new HyracksDataException("Record size ("
-                                + builder.getSize()
-                                + ") larger than frame size ("
-                                + appender.getBuffer().capacity() + ")");
-                    }
-                }
+                FrameUtils.appendToWriter(writer, appender, builder.getFieldEndOffsets(), builder.getByteArray(), 0,
+                        builder.getSize());
 
             }
 
@@ -179,9 +150,7 @@ public class BinaryTokenizerOperatorNodePushable extends
 
     @Override
     public void close() throws HyracksDataException {
-        if (appender.getTupleCount() > 0) {
-            FrameUtils.flushFrame(writeBuffer, writer);
-        }
+        appender.flush(writer, true);
         writer.close();
     }
 

@@ -3,9 +3,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * you may obtain a copy of the License from
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,10 +18,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -35,12 +35,13 @@ import edu.uci.ics.hyracks.api.io.FileReference;
 import edu.uci.ics.hyracks.api.io.IFileHandle;
 import edu.uci.ics.hyracks.api.io.IIOManager;
 import edu.uci.ics.hyracks.api.lifecycle.ILifeCycleComponent;
+import edu.uci.ics.hyracks.api.replication.IIOReplicationManager;
 import edu.uci.ics.hyracks.storage.common.file.BufferedFileHandle;
 import edu.uci.ics.hyracks.storage.common.file.IFileMapManager;
 
 public class BufferCache implements IBufferCacheInternal, ILifeCycleComponent {
     private static final Logger LOGGER = Logger.getLogger(BufferCache.class.getName());
-    private static final int MAP_FACTOR = 2;
+    private static final int MAP_FACTOR = 3;
 
     private static final int MIN_CLEANED_COUNT_DIFF = 3;
     private static final int PIN_MAX_WAIT_TIME = 50;
@@ -55,9 +56,8 @@ public class BufferCache implements IBufferCacheInternal, ILifeCycleComponent {
     private final CleanerThread cleanerThread;
     private final Map<Integer, BufferedFileHandle> fileInfoMap;
     private final Set<Integer> virtualFiles;
-
+    private IIOReplicationManager ioReplicationManager;
     private List<ICachedPageInternal> cachedPages = new ArrayList<ICachedPageInternal>();
-
     private boolean closed;
 
     public BufferCache(IIOManager ioManager, IPageReplacementStrategy pageReplacementStrategy,
@@ -67,7 +67,7 @@ public class BufferCache implements IBufferCacheInternal, ILifeCycleComponent {
         this.pageSize = pageReplacementStrategy.getPageSize();
         this.maxOpenFiles = maxOpenFiles;
         pageReplacementStrategy.setBufferCache(this);
-        pageMap = new CacheBucket[pageReplacementStrategy.getMaxAllowedNumPages() * MAP_FACTOR];
+        pageMap = new CacheBucket[pageReplacementStrategy.getMaxAllowedNumPages() * MAP_FACTOR + 1];
         for (int i = 0; i < pageMap.length; ++i) {
             pageMap[i] = new CacheBucket();
         }
@@ -81,6 +81,15 @@ public class BufferCache implements IBufferCacheInternal, ILifeCycleComponent {
         cleanerThread = new CleanerThread();
         executor.execute(cleanerThread);
         closed = false;
+    }
+
+    //this constructor is used when replication is enabled to pass the IIOReplicationManager
+    public BufferCache(IIOManager ioManager, IPageReplacementStrategy pageReplacementStrategy,
+            IPageCleanerPolicy pageCleanerPolicy, IFileMapManager fileMapManager, int maxOpenFiles,
+            ThreadFactory threadFactory, IIOReplicationManager ioReplicationManager) {
+
+        this(ioManager, pageReplacementStrategy, pageCleanerPolicy, fileMapManager, maxOpenFiles, threadFactory);
+        this.ioReplicationManager = ioReplicationManager;
     }
 
     @Override
@@ -169,12 +178,12 @@ public class BufferCache implements IBufferCacheInternal, ILifeCycleComponent {
 
     @Override
     /**
-     * Takes a virtual page, and copies it to a new page at the physical identifier. 
+     * Takes a virtual page, and copies it to a new page at the physical identifier.
      */
-    //TODO: I should not have to copy the page. I should just append it to the end of the hash bucket, but this is 
-    //safer/easier for now. 
+    //TODO: I should not have to copy the page. I should just append it to the end of the hash bucket, but this is
+    //safer/easier for now.
     public ICachedPage unpinVirtual(long vpid, long dpid) throws HyracksDataException {
-        CachedPage virtPage = findPage(vpid, true); //should definitely succeed. 
+        CachedPage virtPage = findPage(vpid, true); //should definitely succeed.
         //pinSanityCheck(dpid); //debug
         ICachedPage realPage = pin(dpid, false);
         virtPage.acquireReadLatch();
@@ -432,7 +441,8 @@ public class BufferCache implements IBufferCacheInternal, ILifeCycleComponent {
     }
 
     private int hash(long dpid) {
-        return (int) (dpid % pageMap.length);
+        int hashValue = (int) dpid ^ (Integer.reverse((int) (dpid >>> 32)) >>> 1);
+        return hashValue % pageMap.length;
     }
 
     private static class CacheBucket {
@@ -761,6 +771,18 @@ public class BufferCache implements IBufferCacheInternal, ILifeCycleComponent {
     }
 
     @Override
+    public synchronized int getFileReferenceCount(int fileId) {
+        synchronized (fileInfoMap) {
+            BufferedFileHandle fInfo = fileInfoMap.get(fileId);
+            if (fInfo != null) {
+                return fInfo.getReferenceCount();
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    @Override
     public synchronized void deleteMemFile(int fileId) throws HyracksDataException {
         //TODO: possible sanity chcecking here like in above?
         if (LOGGER.isLoggable(Level.INFO)) {
@@ -769,7 +791,7 @@ public class BufferCache implements IBufferCacheInternal, ILifeCycleComponent {
         synchronized (virtualFiles) {
             virtualFiles.remove(fileId);
         }
-        synchronized(fileInfoMap){
+        synchronized (fileInfoMap) {
             fileMapManager.unregisterMemFile(fileId);
         }
     }
@@ -792,8 +814,21 @@ public class BufferCache implements IBufferCacheInternal, ILifeCycleComponent {
         cachedPages.add(page);
     }
 
+    @Override
     public void dumpState(OutputStream os) throws IOException {
         os.write(dumpState().getBytes());
     }
 
+    @Override
+    public boolean isReplicationEnabled() {
+        if (ioReplicationManager != null) {
+            return ioReplicationManager.isReplicationEnabled();
+        }
+        return false;
+    }
+
+    @Override
+    public IIOReplicationManager getIIOReplicationManager() {
+        return ioReplicationManager;
+    }
 }
