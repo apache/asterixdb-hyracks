@@ -295,9 +295,11 @@ public class IntroduceGroupByForSubplanRule implements IAlgebraicRewriteRule {
         List<LogicalVariable> all = new ArrayList<LogicalVariable>();
         VariableUtilities.getLiveVariables(op, all);
         all.retainAll(freeVars);
-        for (FunctionalDependency fd : fdList) {
-            if (fd.getTail().containsAll(all)) {
-                return new HashSet<LogicalVariable>(fd.getHead());
+        if (!all.isEmpty()) {
+            for (FunctionalDependency fd : fdList) {
+                if (fd.getTail().containsAll(all)) {
+                    return new HashSet<LogicalVariable>(fd.getHead());
+                }
             }
         }
         return null;

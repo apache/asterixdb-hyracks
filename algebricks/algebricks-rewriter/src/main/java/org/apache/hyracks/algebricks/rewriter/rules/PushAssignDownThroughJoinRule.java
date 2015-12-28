@@ -34,7 +34,7 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogi
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors.VariableUtilities;
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 
-public class PushAssignDownThroughProductRule implements IAlgebraicRewriteRule {
+public class PushAssignDownThroughJoinRule implements IAlgebraicRewriteRule {
 
     @Override
     public boolean rewritePre(Mutable<ILogicalOperator> opRef, IOptimizationContext context) throws AlgebricksException {
@@ -53,10 +53,10 @@ public class PushAssignDownThroughProductRule implements IAlgebraicRewriteRule {
         if (op2.getOperatorTag() != LogicalOperatorTag.INNERJOIN) {
             return false;
         }
-        AbstractBinaryJoinOperator join = (AbstractBinaryJoinOperator) op2;
-        if (join.getCondition().getValue() != ConstantExpression.TRUE) {
-            return false;
-        }
+//        AbstractBinaryJoinOperator join = (AbstractBinaryJoinOperator) op2;
+//        if (join.getCondition().getValue() != ConstantExpression.TRUE) {
+//            return false;
+//        }
 
         List<LogicalVariable> used = new ArrayList<LogicalVariable>();
         VariableUtilities.getUsedVariables(op1, used);
