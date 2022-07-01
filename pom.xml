@@ -52,7 +52,7 @@
         <global.test.excludes>**/Abstract*.java,${hanging.pregelix.tests},${hivesterix.perf.tests}
         </global.test.excludes>
         <!-- Versions under dependencymanagement or used in many projects via properties -->
-        <hadoop.version>2.2.0</hadoop.version>
+        <hadoop.version>2.7.0</hadoop.version>
         <junit.version>4.8.1</junit.version>
         <commons.io.version>2.4</commons.io.version>
     </properties>
